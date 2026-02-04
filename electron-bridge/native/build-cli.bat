@@ -2,7 +2,7 @@
 REM Build ZKTeco CLI Wrapper for Windows
 echo Compiling zkteco-cli.exe...
 
-set SDK_PATH=%~dp0\Standalone-SDK\Communication Protocol SDK(32Bit Ver6.2.4.11)\sdk
+set SDK_PATH=%~dp0..\..\Standalone-SDK\Communication Protocol SDK(32Bit Ver6.2.4.11)\sdk
 
 REM Check if SDK exists
 if not exist "%SDK_PATH%\zkemsdk.dll" (
