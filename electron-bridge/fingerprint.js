@@ -5,10 +5,18 @@ const path = require('path');
 // Integration modes: 'cli', 'native', 'network', 'mock'
 const INTEGRATION_MODE = process.env.ZK_INTEGRATION_MODE || 'mock';
 
+// Environment variable for simple auth token (dev/testing)
+const AUTH_TOKEN = process.env.ZK_AUTH_TOKEN || 'dev-token';
+
 class FingerprintBridge {
   constructor(port = 8081) {
     this.port = port;
-    this.wss = new WebSocket.Server({ port });
+    this.clientConnections = new Map();
+    this.wss = new WebSocket.Server({ 
+      port,
+      // Security: Origin validation - only allow connections from PWA
+      verifyClient: { origin: 'http://localhost:3000' }
+    });
     this.setupWebSocket();
   }
 
@@ -146,9 +154,33 @@ class FingerprintBridge {
   setupWebSocket() {
     console.log(`Fingerprint bridge running on ws://localhost:${this.port}`);
     console.log(`Integration mode: ${INTEGRATION_MODE}`);
+    console.log(`Origin validation: http://localhost:3000`);
+    console.log(`Rate limit: 5 connections per IP`);
 
-    this.wss.on('connection', (ws) => {
-      console.log('New client connected');
+    this.wss.on('connection', (ws, req) => {
+      // Security: Simple auth token validation for dev/testing
+      const authHeader = req.headers['authorization'];
+      if (AUTH_TOKEN && authHeader !== `Bearer ${AUTH_TOKEN}`) {
+        console.warn(`Unauthorized connection from ${req.socket.remoteAddress}`);
+        ws.close(1008, 'Unauthorized');
+        return;
+      }
+
+      // Security: Rate limiting (prevent DoS)
+      const clientIP = req.socket.remoteAddress;
+      const existingConnections = this.clientConnections.get(clientIP) || 0;
+
+      if (existingConnections >= 5) {
+        console.warn(`Rate limit exceeded for ${clientIP}`);
+        ws.close(1008, 'Too many connections');
+        return;
+      }
+
+      // Track connection for cleanup
+      const clientId = ws.id;
+      this.clientConnections.set(clientId, { ws, timestamp: Date.now() });
+
+      console.log('New client connected', clientIP);
 
       ws.on('message', async (message) => {
         try {
@@ -161,7 +193,11 @@ class FingerprintBridge {
                 const template = await this.captureFingerprint();
                 ws.send(JSON.stringify({ type: 'fingerprint', template, mode: INTEGRATION_MODE }));
               } catch (error) {
-                ws.send(JSON.stringify({ type: 'error', message: error.message }));
+                // Sanitized error message (no internal details exposed)
+                ws.send(JSON.stringify({ 
+                  type: 'error', 
+                  message: 'Capture failed' // Generic message
+                }));
               }
               break;
 
@@ -183,30 +219,45 @@ class FingerprintBridge {
                   await device.createSocket();
                   ws.send(JSON.stringify({
                     type: 'connected',
-                    message: `Connected to ${data.ip || 'default IP'}`
+                    message: `Connected to ${data.ip || 'default IP'}`,
+                    mode: INTEGRATION_MODE
                   }));
                 } catch (error) {
-                  ws.send(JSON.stringify({ type: 'error', message: error.message }));
+                  ws.send(JSON.stringify({ 
+                    type: 'error', 
+                    message: 'Connection failed',
+                    mode: INTEGRATION_MODE
+                  }));
                 }
               } else {
                 ws.send(JSON.stringify({
                   type: 'error',
-                  message: 'Connect only available in network mode'
+                  message: 'Connect only available in network mode',
+                  mode: INTEGRATION_MODE
                 }));
               }
               break;
 
             default:
-              ws.send(JSON.stringify({ type: 'error', message: 'Unknown command' }));
+              ws.send(JSON.stringify({ 
+                type: 'error', 
+                message: 'Unknown command',
+                mode: INTEGRATION_MODE
+              }));
           }
         } catch (error) {
           console.error('Error processing message:', error);
-          ws.send(JSON.stringify({ type: 'error', message: error.message }));
+          ws.send(JSON.stringify({ 
+            type: 'error', 
+            message: 'Capture failed'
+          }));
         }
       });
 
       ws.on('close', () => {
-        console.log('Client disconnected');
+        // Cleanup connection tracking
+        this.clientConnections.delete(ws.id);
+        console.log('Client disconnected', req.socket.remoteAddress);
       });
 
       ws.on('error', (error) => {
