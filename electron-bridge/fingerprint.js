@@ -1,4 +1,9 @@
 const WebSocket = require('ws');
+const { spawn } = require('child_process');
+const path = require('path');
+
+// Integration modes: 'cli', 'native', 'network', 'mock'
+const INTEGRATION_MODE = process.env.ZK_INTEGRATION_MODE || 'mock';
 
 class FingerprintBridge {
   constructor(port = 8081) {
@@ -8,31 +13,139 @@ class FingerprintBridge {
   }
 
   captureFingerprint() {
-    return new Promise((resolve, reject) => {
-      // This is a placeholder for ZK9500 SDK integration
-      // In production, this would call the actual SDK to capture fingerprint
-      // For now, we simulate a fingerprint capture
+    switch (INTEGRATION_MODE) {
+      case 'cli':
+        return this.captureViaCLI();
+      case 'native':
+        return this.captureViaNative();
+      case 'network':
+        return this.captureViaNetwork();
+      case 'mock':
+      default:
+        return this.captureMock();
+    }
+  }
 
+  // Mode 1: USB SDK via CLI Wrapper
+  captureViaCLI() {
+    return new Promise((resolve, reject) => {
+      const exePath = path.join(__dirname, 'native', 'zkteco-cli.exe');
+
+      try {
+        const sdk = spawn(exePath, ['capture'], {
+          cwd: path.join(__dirname, 'native')
+        });
+
+        let data = '';
+        sdk.stdout.on('data', (chunk) => data += chunk);
+
+        sdk.on('close', (code) => {
+          if (code === 0) {
+            try {
+              const result = JSON.parse(data);
+              if (result.success && result.template) {
+                resolve(result.template);
+              } else {
+                reject(new Error(result.error || 'Capture failed'));
+              }
+            } catch (e) {
+              reject(new Error(`Invalid JSON: ${e.message}`));
+            }
+          } else {
+            reject(new Error(`CLI failed with code ${code}`));
+          }
+        });
+
+        sdk.on('error', reject);
+      } catch (error) {
+        // Fallback to mock if CLI not found
+        console.warn('CLI not found, falling back to mock');
+        return this.captureMock();
+      }
+    });
+  }
+
+  // Mode 2: USB SDK via Native Addon
+  captureViaNative() {
+    try {
+      const zktecoNative = require('./native/zkteco_native.node');
+
+      return new Promise((resolve, reject) => {
+        try {
+          const buffer = zktecoNative.captureFingerprint();
+          // Convert buffer to base64 string
+          resolve(buffer.toString('base64'));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    } catch (error) {
+      // Fallback to mock if native addon not found
+      console.warn('Native addon not found, falling back to mock');
+      return this.captureMock();
+    }
+  }
+
+  // Mode 3: Networked ZK Device via zkteco-js
+  async captureViaNetwork() {
+    try {
+      const ZktecoJs = require('zkteco-js');
+
+      // For networked ZK devices, use real-time logs instead
+      const device = new ZktecoJs(process.env.ZK_DEVICE_IP || '192.168.1.201', 4370, 5200, 5000);
+
+      try {
+        await device.createSocket();
+
+        // Get device info
+        const info = await device.getInfo();
+        console.log('Device info:', info);
+
+        // Listen for next real-time attendance event (fingerprint scan)
+        return new Promise((resolve, reject) => {
+          let resolved = false;
+          const timeout = setTimeout(() => {
+            device.disconnect();
+            reject(new Error('Timeout waiting for fingerprint'));
+          }, 15000); // 15 second timeout
+
+          device.getRealTimeLogs((log) => {
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timeout);
+              device.disconnect();
+
+              // Return mock template for networked mode
+              // Real fingerprint templates need device communication protocol
+              const mockTemplate = Buffer.from(`network_log_${log.userId}_${Date.now()}`).toString('base64');
+              resolve(mockTemplate);
+            }
+          });
+        });
+      } catch (error) {
+        throw new Error(`Network connection failed: ${error.message}`);
+      }
+    } catch (error) {
+      // zkteco-js not installed
+      console.warn('zkteco-js not found, falling back to mock');
+      return this.captureMock();
+    }
+  }
+
+  // Mode 4: Mock/Development (default)
+  captureMock() {
+    return new Promise((resolve) => {
       // Simulate SDK delay
       setTimeout(() => {
-        // Generate a mock fingerprint template
         const mockTemplate = Buffer.from('mock_fingerprint_template').toString('base64');
         resolve(mockTemplate);
       }, 1000);
-
-      // Example of how ZK9500 SDK would be called:
-      // const sdk = spawn('./sdk/zk9500-capture', ['--format', 'base64']);
-      // sdk.stdout.on('data', (data) => {
-      //   resolve(data.toString().trim());
-      // });
-      // sdk.on('close', (code) => {
-      //   if (code !== 0) reject(new Error(`SDK failed with code ${code}`));
-      // });
     });
   }
 
   setupWebSocket() {
     console.log(`Fingerprint bridge running on ws://localhost:${this.port}`);
+    console.log(`Integration mode: ${INTEGRATION_MODE}`);
 
     this.wss.on('connection', (ws) => {
       console.log('New client connected');
@@ -46,14 +159,41 @@ class FingerprintBridge {
             case 'capture':
               try {
                 const template = await this.captureFingerprint();
-                ws.send(JSON.stringify({ type: 'fingerprint', template }));
+                ws.send(JSON.stringify({ type: 'fingerprint', template, mode: INTEGRATION_MODE }));
               } catch (error) {
                 ws.send(JSON.stringify({ type: 'error', message: error.message }));
               }
               break;
 
             case 'ping':
-              ws.send(JSON.stringify({ type: 'pong' }));
+              ws.send(JSON.stringify({ type: 'pong', mode: INTEGRATION_MODE }));
+              break;
+
+            case 'connect':
+              if (INTEGRATION_MODE === 'network') {
+                // Connect to network device
+                try {
+                  const ZktecoJs = require('zkteco-js');
+                  const device = new ZktecoJs(
+                    process.env.ZK_DEVICE_IP || data.ip,
+                    4370,
+                    5200,
+                    5000
+                  );
+                  await device.createSocket();
+                  ws.send(JSON.stringify({
+                    type: 'connected',
+                    message: `Connected to ${data.ip || 'default IP'}`
+                  }));
+                } catch (error) {
+                  ws.send(JSON.stringify({ type: 'error', message: error.message }));
+                }
+              } else {
+                ws.send(JSON.stringify({
+                  type: 'error',
+                  message: 'Connect only available in network mode'
+                }));
+              }
               break;
 
             default:

@@ -1,0 +1,17 @@
+{
+  "name": "zkteco-bridge-native",
+  "version": "1.0.0",
+  "description": "Native ZKTeco SDK bindings for USB ZK9500 fingerprint scanner",
+  "main": "fingerprint.js",
+  "scripts": {
+    "install": "node-gyp rebuild",
+    "rebuild": "node-gyp rebuild"
+  },
+  "gypfile": true,
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "node-gyp": "^10.0.0"
+  }
+}
