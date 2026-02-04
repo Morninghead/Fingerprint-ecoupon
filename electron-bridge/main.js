@@ -1,7 +1,9 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
+const FingerprintBridge = require('./fingerprint');
 
 let mainWindow;
+let fingerprintBridge;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -23,6 +25,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  fingerprintBridge = new FingerprintBridge(8081);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -32,6 +35,9 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  if (fingerprintBridge) {
+    fingerprintBridge.close();
+  }
   if (process.platform !== 'darwin') {
     app.quit();
   }
