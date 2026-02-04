@@ -1,0 +1,27 @@
+{
+  "name": "zk9500-bridge",
+  "version": "1.0.0",
+  "description": "Electron bridge for ZK9500 fingerprint scanner integration",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "keywords": ["electron", "zk9500", "fingerprint"],
+  "author": "Morninghead",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.0"
+  },
+  "build": {
+    "appId": "com.zk9500.bridge",
+    "productName": "ZK9500 Bridge",
+    "win": {
+      "target": ["nsis"]
+    }
+  }
+}
