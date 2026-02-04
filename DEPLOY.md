@@ -26,7 +26,9 @@ This system uses a **Hybrid Architecture** because it requires access to local U
 Go to **Site Settings > Environment Variables** and add:
 
 - `NEXT_PUBLIC_SUPABASE_URL`: (From your Supabase Project Settings > API)
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: (From your Supabase Project Settings > API)
+- `NEXT_PUBLIC_SUPABASE_KEY`: (From your Supabase Project Settings > API > **Project API keys** > **anon** / **public**)
+
+*Important: Do NOT use the service_role (secret) key!*
 
 *Note: You do not need the `ZK_` variables on Netlify, as the scanner is not attached to the Netlify server.*
 
