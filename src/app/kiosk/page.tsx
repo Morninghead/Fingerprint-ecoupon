@@ -16,6 +16,7 @@ export default function KioskPage() {
 
     ws.onopen = () => {
       console.log('Connected to fingerprint bridge');
+      setMessage('Place your finger on the scanner');
     };
 
     ws.onmessage = async (event) => {
@@ -31,13 +32,18 @@ export default function KioskPage() {
     };
 
     ws.onerror = () => {
-      console.error('WebSocket error');
-      setStatus('error');
-      setMessage('Cannot connect to fingerprint scanner');
+      console.warn('Fingerprint bridge not available - using mock mode');
+      // Don't set error status, just log for debugging
+    };
+
+    ws.onclose = () => {
+      console.warn('Fingerprint bridge disconnected');
     };
 
     return () => {
-      ws.close();
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
     };
   }, []);
 
@@ -127,7 +133,7 @@ export default function KioskPage() {
           {status === 'idle' && (
             <div className="text-gray-600">
               <svg className="w-16 h-16 mx-auto mb-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-4.716 2.053c-.453.659-.664 1.316-.503 1.728.289.876.396 1.076.727 1.748.498 2.652-.227.914-.474 1.672-.654 2.093-.18.42-.345.972-.577 1.472-.705.498-.881.695-1.547.602-2.095.093-.412.194-.763.388-1.325.194-.562 0-1.12.473-2.093-.18-.42-.345-.972-.577-1.472-.705-.498-.881-.695-1.547-.602-2.095.093-.412.194-.763.388-1.325.194-.562 0-1.12-.473-2.093-.18-.42-.345-.972-.577-1.472-.705-.498-.881-.695-1.547-.602-2.095.093-.412.194-.763.388-1.325.194-.562 0-1.12-.473-2.093-.18-.42-.345-.972-.577-1.472-.705-.498-.881-.695-1.547-.602-2.095-.093-.412-.194-.763-.388-1.325-.194-.562 0-1.12.473-2.093.18.42.345.972.577 1.472.705.498.881.695 1.547.602 2.095-.093.412-.194.763-.388-1.325-.194-.562 0-1.12-.473-2.093.18.42.345.972.577 1.472.705.498.881.695 1.547.602 2.095.093.412.194.763.388 1.325.194.562 0 1.12.473 2.093.18.42.345.972.577 1.472.705.498.881.695 1.547.602 2.095.093.412.194.763.388 1.325.194.562 0 1.12.473 2.093-.18-.42-.345-.972-.577-1.472-.705-.498-.881-.695-1.547-.602-2.095-.093-.412-.194-.763-.388-1.325-.194-.562 0-1.12-.473-2.093-.18.42.345.972.577 1.472.705.498.881.695 1.547.602 2.095.093.412.194.763.388 1.325.194.562 0 1.12.473 2.093" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
               <div className="text-lg">{message}</div>
             </div>
