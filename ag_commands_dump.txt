@@ -95,12 +95,12 @@ antigravity.agentPanel.removeView
 workbench.action.showAntigravityStatusBarSettings
 workbench.action.registerAntigravityStatusBarItemPosition
 workbench.action.isAntigravitySnoozed
+antigravity.toggleRerenderFrequencyAlerts
 git.antigravityCloneNonInteractive
 git.antigravityGetRemoteUrl
+antigravity.onShellCommandCompletion
 workbench.action.output.show.google.antigravity.Antigravity
 workbench.action.output.show.google.antigravity.Antigravity Crash Logs
-antigravity.onShellCommandCompletion
-antigravity.toggleRerenderFrequencyAlerts
 antigravity.onManagerTerminalCommandStart
 antigravity.onManagerTerminalCommandData
 antigravity.onManagerTerminalCommandFinish
