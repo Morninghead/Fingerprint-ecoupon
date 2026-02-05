@@ -57,7 +57,7 @@ export default function KioskPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fingerprint_template: template,
-          company_id: 'demo-company-id'
+          company_id: 'c0000000-0000-0000-0000-000000000001'
         })
       });
 
