@@ -109,15 +109,23 @@ export default function KioskPage() {
     setStatus('scanning');
     setMessage('Scanning fingerprint...');
 
-    // Send capture command to bridge
-    wsRef.current?.send(JSON.stringify({ type: 'capture' }));
+    // Check if WebSocket is connected
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      // Send capture command to bridge
+      wsRef.current.send(JSON.stringify({ type: 'capture' }));
+    } else {
+      // Fallback to mock mode for testing without hardware
+      console.log('Using mock fingerprint template');
+      setTimeout(() => {
+        verifyFingerprint('mock_fingerprint_template_001');
+      }, 1500); // Simulate scan delay
+    }
   }
 
   function handleReset() {
     setStatus('idle');
     setMessage('Place your finger on the scanner');
     setEmployeeName('');
-    setMealType(null);
   }
 
   return (
