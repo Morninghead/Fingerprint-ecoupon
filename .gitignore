@@ -49,3 +49,36 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ============================================
+# FpTest - Windows Fingerprint Scanner (Local only)
+# ============================================
+FpTest/bin/
+FpTest/obj/
+FpTest/*.user
+FpTest/*.cache
+FpTest/templates_cache.json
+
+# FpJavaCLI
+FpJavaCLI/bin/
+FpJavaCLI/out/
+FpJavaCLI/*.class
+
+# Local MDB database files
+*.mdb
+*.ldb
+
+# Local fingerprint data
+all_employees_with_fp.json
+fingerprint_export/
+
+# Electron native builds
+electron-bridge/native/bin/
+electron-bridge/native/obj/
+electron-bridge/native/*.exe
+
+# IDE
+.vs/
+.vscode/
+*.suo
+*.swp

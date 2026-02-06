@@ -1,55 +1,179 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 export default function KioskPage() {
-  const [status, setStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
-  const [message, setMessage] = useState('Place your finger on the scanner');
+  const [status, setStatus] = useState<'connecting' | 'ready' | 'scanning' | 'success' | 'error'>('connecting');
+  const [message, setMessage] = useState('Connecting to scanner...');
   const [employeeName, setEmployeeName] = useState('');
   const [mealType, setMealType] = useState<'LUNCH' | 'OT_MEAL' | null>(null);
+  const [errorInfo, setErrorInfo] = useState<{ title: string; message: string } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const autoRestartTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
 
-  useEffect(() => {
-    // Connect to fingerprint bridge
-    const ws = new WebSocket('ws://localhost:8081');
-    wsRef.current = ws;
+  // Auto-restart after success/error
+  const startAutoRestart = useCallback((delay: number) => {
+    // Clear any existing timer
+    if (autoRestartTimerRef.current) {
+      clearTimeout(autoRestartTimerRef.current);
+    }
 
-    ws.onopen = () => {
-      console.log('Connected to fingerprint bridge');
-      setMessage('Place your finger on the scanner');
-    };
+    // Start countdown
+    setCountdown(delay);
+    let remaining = delay;
 
-    ws.onmessage = async (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.type === 'fingerprint') {
-        // Verify fingerprint with server
-        await verifyFingerprint(data.template);
-      } else if (data.type === 'error') {
-        setStatus('error');
-        setMessage('Fingerprint scan failed: ' + data.message);
+    const countdownInterval = setInterval(() => {
+      remaining--;
+      setCountdown(remaining);
+      if (remaining <= 0) {
+        clearInterval(countdownInterval);
       }
+    }, 1000);
+
+    // Auto-restart after delay
+    autoRestartTimerRef.current = setTimeout(() => {
+      clearInterval(countdownInterval);
+      setCountdown(null);
+      resetAndCapture();
+    }, delay * 1000);
+  }, []);
+
+  // Reset and start new capture
+  const resetAndCapture = useCallback(() => {
+    setStatus('ready');
+    setMessage('Place your finger on the scanner');
+    setEmployeeName('');
+    setMealType(null);
+    setErrorInfo(null);
+
+    // Clear canvas
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#f3f4f6';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    // Start capture immediately
+    startCapture();
+  }, []);
+
+  // Start fingerprint capture
+  const startCapture = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      setStatus('scanning');
+      setMessage('Waiting for fingerprint...');
+      wsRef.current.send(JSON.stringify({ type: 'capture' }));
+    }
+  }, []);
+
+  // Handle error with auto-restart
+  const showError = useCallback((title: string, message: string, restartDelay: number = 5) => {
+    setErrorInfo({ title, message });
+    setStatus('error');
+    setMessage(message);
+    startAutoRestart(restartDelay);
+  }, [startAutoRestart]);
+
+  // Connect to WebSocket and auto-start
+  useEffect(() => {
+    const connect = () => {
+      const ws = new WebSocket('ws://localhost:8081');
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('Connected to fingerprint bridge');
+        setStatus('ready');
+        setMessage('Place your finger on the scanner');
+
+        // Auto-start capture after connecting
+        setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            setStatus('scanning');
+            setMessage('Waiting for fingerprint...');
+            ws.send(JSON.stringify({ type: 'capture' }));
+          }
+        }, 500);
+      };
+
+      ws.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'fingerprint') {
+          // Draw fingerprint image if available
+          if (data.image && data.width && data.height) {
+            drawFingerprintImage(data.image, data.width, data.height);
+          }
+          // Verify fingerprint with server
+          await verifyFingerprint(data.template);
+        } else if (data.type === 'error') {
+          const errorMsg = data.message || 'Unknown error';
+
+          if (errorMsg.toLowerCase().includes('no finger') || errorMsg.toLowerCase().includes('timeout')) {
+            // Timeout - restart very quickly
+            showError('⏱️ Timeout', 'No finger detected. Please try again.', 1);
+          } else {
+            showError('❌ Scan Failed', errorMsg, 2);
+          }
+        }
+      };
+
+      ws.onerror = () => {
+        console.error('WebSocket error');
+        setStatus('error');
+        setMessage('Scanner not available');
+        // Try to reconnect after 5 seconds
+        setTimeout(connect, 5000);
+      };
+
+      ws.onclose = () => {
+        console.warn('WebSocket closed');
+        setStatus('connecting');
+        setMessage('Reconnecting to scanner...');
+        // Try to reconnect after 3 seconds
+        setTimeout(connect, 3000);
+      };
     };
 
-    ws.onerror = () => {
-      console.warn('Fingerprint bridge not available - using mock mode');
-      // Don't set error status, just log for debugging
-    };
-
-    ws.onclose = () => {
-      console.warn('Fingerprint bridge disconnected');
-    };
+    connect();
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
+      if (autoRestartTimerRef.current) {
+        clearTimeout(autoRestartTimerRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
       }
     };
-  }, []);
+  }, [showError]);
+
+  function drawFingerprintImage(hexData: string, width: number, height: number) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const imageData = ctx.createImageData(width, height);
+    for (let i = 0; i < hexData.length && i / 2 < width * height; i += 2) {
+      const pixelValue = parseInt(hexData.substr(i, 2), 16);
+      const pixelIndex = i / 2;
+      imageData.data[pixelIndex * 4] = pixelValue;
+      imageData.data[pixelIndex * 4 + 1] = pixelValue;
+      imageData.data[pixelIndex * 4 + 2] = pixelValue;
+      imageData.data[pixelIndex * 4 + 3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
 
   async function verifyFingerprint(template: string) {
     try {
-      setStatus('scanning');
       setMessage('Verifying fingerprint...');
 
       const response = await fetch('/api/verify-fingerprint', {
@@ -65,18 +189,16 @@ export default function KioskPage() {
 
       if (response.ok && data.employee) {
         setEmployeeName(data.employee.name);
-        await redeemMeal(data.employee.id);
+        await redeemMeal(data.employee.id, data.employee.name);
       } else {
-        setStatus('error');
-        setMessage('Employee not found. Please try again.');
+        showError('❌ Not Registered', 'Fingerprint not found. Please register at HR.', 3);
       }
     } catch (error) {
-      setStatus('error');
-      setMessage('Error verifying fingerprint');
+      showError('❌ Error', 'Verification failed. Please try again.', 2);
     }
   }
 
-  async function redeemMeal(employeeId: string) {
+  async function redeemMeal(employeeId: string, name: string) {
     try {
       const response = await fetch('/api/redeem', {
         method: 'POST',
@@ -92,123 +214,126 @@ export default function KioskPage() {
       if (response.ok && data.success) {
         setStatus('success');
         setMealType(data.transaction.meal_type);
-        setMessage(`Meal redeemed successfully! Employee: ${data.employee.name}`);
+        setMessage(`Welcome, ${name}!`);
+        // Auto-restart after 3 seconds
+        startAutoRestart(3);
       } else {
-        setStatus('error');
-        setMessage(data.error || 'Unable to redeem meal');
+        showError('⚠️ Cannot Redeem', data.error || 'Already redeemed today or not eligible.', 3);
       }
     } catch (error) {
-      setStatus('error');
-      setMessage('Error redeeming meal');
+      showError('❌ Error', 'Failed to redeem meal. Please try again.', 2);
     }
-  }
-
-  function handleScan() {
-    if (status === 'scanning') return;
-
-    setStatus('scanning');
-    setMessage('Scanning fingerprint...');
-
-    // Check if WebSocket is connected
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      // Send capture command to bridge
-      wsRef.current.send(JSON.stringify({ type: 'capture' }));
-    } else {
-      // Fallback to mock mode for testing without hardware
-      console.log('Using mock fingerprint template');
-      setTimeout(() => {
-        verifyFingerprint('mock_fingerprint_template_001');
-      }, 1500); // Simulate scan delay
-    }
-  }
-
-  function handleReset() {
-    setStatus('idle');
-    setMessage('Place your finger on the scanner');
-    setEmployeeName('');
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-8">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">E-Coupon Kiosk</h1>
-          <p className="mt-2 text-gray-600">Scan your fingerprint to redeem your meal</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
+        {/* Header */}
+        <div className={`p-6 text-center text-white ${status === 'success' ? 'bg-green-500' :
+          status === 'error' ? 'bg-red-500' :
+            status === 'scanning' ? 'bg-blue-500' :
+              'bg-gray-500'
+          }`}>
+          <h1 className="text-3xl font-bold">🍽️ E-Coupon</h1>
+          <p className="text-sm text-white mt-1">Fingerprint Meal Redemption</p>
         </div>
 
-        {/* Status Display */}
-        <div className="mb-8 p-6 rounded-xl bg-gray-50 text-center">
-          {status === 'idle' && (
-            <div className="text-gray-600">
-              <svg className="w-16 h-16 mx-auto mb-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              <div className="text-lg">{message}</div>
+        <div className="p-6">
+          {/* Fingerprint Canvas */}
+          <div className="flex justify-center mb-6">
+            <div className="bg-gray-100 p-4 rounded-2xl">
+              <canvas
+                ref={canvasRef}
+                width={180}
+                height={240}
+                className="border-2 border-gray-300 rounded-xl bg-white"
+                style={{ display: 'block' }}
+              />
             </div>
-          )}
+          </div>
 
-          {status === 'scanning' && (
-            <div className="text-blue-600">
-              <svg className="animate-spin w-16 h-16 mx-auto mb-3" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8 8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-              <div className="text-lg">Scanning...</div>
-            </div>
-          )}
+          {/* Status Area */}
+          <div className="text-center mb-6">
+            {status === 'connecting' && (
+              <div className="text-gray-800">
+                <div className="animate-pulse text-4xl mb-2">🔌</div>
+                <div className="text-xl font-bold">{message}</div>
+              </div>
+            )}
 
-          {status === 'success' && (
-            <div className="text-green-600">
-              <svg className="w-16 h-16 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="text-xl font-semibold">Success!</div>
-              <div className="text-sm mt-2">{message}</div>
-              {employeeName && (
-                <div className="mt-3 p-3 bg-green-100 rounded-lg">
-                  Employee: <span className="font-semibold">{employeeName}</span>
+            {status === 'ready' && (
+              <div className="text-blue-600">
+                <div className="text-6xl mb-2">👆</div>
+                <div className="text-xl font-medium">{message}</div>
+              </div>
+            )}
+
+            {status === 'scanning' && (
+              <div className="text-blue-600">
+                <div className="text-6xl mb-2 animate-pulse">🔍</div>
+                <div className="text-xl font-medium">{message}</div>
+                <div className="text-sm text-gray-700 mt-2">Place your finger on the scanner</div>
+              </div>
+            )}
+
+            {status === 'success' && (
+              <div className="text-green-600">
+                <div className="text-6xl mb-2">✅</div>
+                <div className="text-2xl font-bold">{message}</div>
+                {employeeName && (
+                  <div className="mt-4 p-4 bg-green-100 rounded-xl">
+                    <div className="text-xl font-bold text-green-800">{employeeName}</div>
+                    <div className="text-green-700 mt-1">
+                      🍽️ {mealType === 'LUNCH' ? 'Lunch' : 'OT Meal'} Redeemed!
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {status === 'error' && errorInfo && (
+              <div className="text-red-600">
+                <div className="text-6xl mb-2">
+                  {errorInfo.title.includes('Timeout') ? '⏱️' : '❌'}
                 </div>
-              )}
+                <div className="text-xl font-bold">{errorInfo.title}</div>
+                <div className="text-gray-800 mt-2">{errorInfo.message}</div>
+              </div>
+            )}
+          </div>
+
+          {/* Countdown */}
+          {countdown !== null && (
+            <div className="text-center text-gray-700 text-sm font-medium">
+              Restarting in {countdown} seconds...
             </div>
           )}
 
-          {status === 'error' && (
-            <div className="text-red-600">
-              <svg className="w-16 h-16 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l-2 2m10-4l-2 2" />
-              </svg>
-              <div className="text-lg">{message}</div>
+          {/* Status Indicator */}
+          <div className="flex justify-center mt-4">
+            <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${status === 'scanning' ? 'bg-blue-100 text-blue-800' :
+              status === 'success' ? 'bg-green-100 text-green-800' :
+                status === 'error' ? 'bg-red-100 text-red-800' :
+                  'bg-gray-100 text-gray-800'
+              }`}>
+              <span className={`w-2 h-2 rounded-full mr-2 ${status === 'scanning' ? 'bg-blue-500 animate-pulse' :
+                status === 'success' ? 'bg-green-500' :
+                  status === 'error' ? 'bg-red-500' :
+                    'bg-gray-500'
+                }`}></span>
+              {status === 'connecting' ? 'Connecting...' :
+                status === 'ready' ? 'Ready' :
+                  status === 'scanning' ? 'Scanning...' :
+                    status === 'success' ? 'Success!' :
+                      'Error'}
             </div>
-          )}
+          </div>
         </div>
-
-        {/* Scan Button */}
-        {status !== 'success' && (
-          <button
-            onClick={handleScan}
-            disabled={status === 'scanning'}
-            className="w-full py-6 bg-blue-600 text-white rounded-xl text-xl font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-95"
-          >
-            {status === 'scanning' ? 'Scanning...' : 'Scan Fingerprint'}
-          </button>
-        )}
-
-        {/* Reset Button */}
-        {status !== 'idle' && (
-          <button
-            onClick={handleReset}
-            className="w-full mt-4 py-3 border-2 border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            Scan Another
-          </button>
-        )}
 
         {/* Footer */}
-        <div className="mt-8 pt-6 border-t text-center text-sm text-gray-500">
-          <a href="/admin" className="text-blue-600 hover:text-blue-700">
-            Admin Panel
-          </a>
+        <div className="bg-gray-50 px-6 py-3 text-center text-xs text-gray-500">
+          <a href="/admin" className="text-blue-600 hover:underline mr-3">Admin</a>
+          <a href="/test-scanner" className="text-blue-600 hover:underline">Debug</a>
         </div>
       </div>
     </div>

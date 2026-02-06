@@ -52,6 +52,36 @@ export default function DashboardPage() {
 
   return (
     <div>
+      {/* Navigation Menu */}
+      <div className="mb-8 bg-white rounded-lg shadow-sm p-4">
+        <nav className="flex gap-4">
+          <a
+            href="/admin/dashboard"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium"
+          >
+            Dashboard
+          </a>
+          <a
+            href="/admin/credits"
+            className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-medium hover:bg-green-200"
+          >
+            Manage Credits
+          </a>
+          <a
+            href="/admin/employees"
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+          >
+            Employees
+          </a>
+          <a
+            href="/admin/reports"
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+          >
+            Reports
+          </a>
+        </nav>
+      </div>
+
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="mt-1 text-gray-600">Today's meal redemption statistics</p>

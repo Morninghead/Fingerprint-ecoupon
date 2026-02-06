@@ -31,7 +31,7 @@ export default function EmployeeManagementPage() {
       .insert({
         name: employee.name!,
         pin: employee.pin!,
-        company_id: 'demo-company-id', // Will be dynamic
+        company_id: 'c0000000-0000-0000-0000-000000000001', // Demo company
         fingerprint_template: employee.fingerprint_template || null
       });
 
@@ -64,12 +64,20 @@ export default function EmployeeManagementPage() {
             <h1 className="text-2xl font-bold text-gray-900">Employee Management</h1>
             <p className="mt-1 text-gray-600">Manage your company employees</p>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Add Employee
-          </button>
+          <div className="flex items-center gap-3">
+            <a
+              href="/admin/register-fingerprint"
+              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              👆 Register Fingerprints
+            </a>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Add Employee
+            </button>
+          </div>
         </div>
       </div>
 

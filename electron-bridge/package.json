@@ -7,11 +7,21 @@
     "start": "electron .",
     "build": "electron-builder --win"
   },
-  "keywords": ["electron", "zk9500", "fingerprint"],
+  "keywords": [
+    "electron",
+    "zk9500",
+    "fingerprint"
+  ],
   "author": "Morninghead",
   "license": "MIT",
   "dependencies": {
-    "ws": "^8.16.0"
+    "@supabase/supabase-js": "^2.94.1",
+    "dotenv": "^17.2.3",
+    "mdb-reader": "^3.1.0",
+    "node-adodb": "^5.0.3",
+    "odbc": "^2.4.9",
+    "ws": "^8.16.0",
+    "zkteco-js": "^1.7.1"
   },
   "devDependencies": {
     "electron": "^28.0.0",
@@ -21,7 +31,9 @@
     "appId": "com.zk9500.bridge",
     "productName": "ZK9500 Bridge",
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     }
   }
 }
