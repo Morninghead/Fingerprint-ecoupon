@@ -76,7 +76,7 @@ export default function ReportsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Transaction Reports</h1>
-            <p className="mt-1 text-gray-600">View and export meal redemption history</p>
+            <p className="mt-1 text-gray-700">View and export meal redemption history</p>
           </div>
           <button
             onClick={exportToCSV}
@@ -99,7 +99,7 @@ export default function ReportsPage() {
               type="date"
               value={filters.dateFrom}
               onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 font-medium"
             />
           </div>
 
@@ -111,7 +111,7 @@ export default function ReportsPage() {
               type="date"
               value={filters.dateTo}
               onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 font-medium"
             />
           </div>
 
@@ -122,7 +122,7 @@ export default function ReportsPage() {
             <select
               value={filters.mealType}
               onChange={(e) => setFilters({ ...filters, mealType: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 font-medium"
             >
               <option value="">All Types</option>
               <option value="LUNCH">Lunch</option>
@@ -147,7 +147,7 @@ export default function ReportsPage() {
           <tbody className="divide-y divide-gray-200">
             {transactions.map((tx) => (
               <tr key={tx.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 text-sm text-gray-600">
+                <td className="px-6 py-4 text-sm text-gray-900">
                   {new Date(tx.timestamp).toLocaleString()}
                 </td>
                 <td className="px-6 py-4 font-medium text-gray-900">

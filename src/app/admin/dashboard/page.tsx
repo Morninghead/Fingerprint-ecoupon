@@ -54,12 +54,18 @@ export default function DashboardPage() {
     <div>
       {/* Navigation Menu */}
       <div className="mb-8 bg-white rounded-lg shadow-sm p-4">
-        <nav className="flex gap-4">
+        <nav className="flex gap-4 flex-wrap">
           <a
             href="/admin/dashboard"
             className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium"
           >
             Dashboard
+          </a>
+          <a
+            href="/admin/daily-credits"
+            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200"
+          >
+            📊 Daily Credits
           </a>
           <a
             href="/admin/credits"
@@ -84,28 +90,28 @@ export default function DashboardPage() {
 
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-1 text-gray-600">Today's meal redemption statistics</p>
+        <p className="mt-1 text-gray-700">Today's meal redemption statistics</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="text-sm font-medium text-gray-600">Lunch Meals</div>
+          <div className="text-sm font-medium text-gray-800">Lunch Meals</div>
           <div className="mt-2 text-3xl font-bold text-blue-600">{stats.totalLunch}</div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="text-sm font-medium text-gray-600">OT Meals</div>
+          <div className="text-sm font-medium text-gray-800">OT Meals</div>
           <div className="mt-2 text-3xl font-bold text-green-600">{stats.totalOT}</div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="text-sm font-medium text-gray-600">Total Today</div>
+          <div className="text-sm font-medium text-gray-800">Total Today</div>
           <div className="mt-2 text-3xl font-bold text-purple-600">{stats.todayCount}</div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="text-sm font-medium text-gray-600">Total Cost</div>
+          <div className="text-sm font-medium text-gray-800">Total Cost</div>
           <div className="mt-2 text-3xl font-bold text-orange-600">฿{stats.totalCost.toFixed(2)}</div>
         </div>
       </div>
@@ -113,7 +119,7 @@ export default function DashboardPage() {
       {/* Recent Transactions */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b">
-          <h3 className="text-lg font-semibold">Recent Redemptions</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Recent Redemptions</h3>
         </div>
 
         <table className="w-full">
@@ -129,7 +135,7 @@ export default function DashboardPage() {
           <tbody className="divide-y divide-gray-200">
             {transactions.map((tx) => (
               <tr key={tx.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 text-sm text-gray-600">
+                <td className="px-6 py-4 text-sm text-gray-800">
                   {new Date(tx.timestamp).toLocaleTimeString()}
                 </td>
                 <td className="px-6 py-4 font-medium text-gray-900">

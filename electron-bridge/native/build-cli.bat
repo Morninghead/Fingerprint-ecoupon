@@ -1,44 +1,109 @@
 @echo off
 REM Build ZKTeco CLI Wrapper for Windows
-echo Compiling zkteco-cli.exe...
+echo ========================================
+echo Building ZKTeco CLI for ZK9500  
+echo ========================================
+echo.
 
-set SDK_PATH=%~dp0..\..\Standalone-SDK\Communication Protocol SDK(32Bit Ver6.2.4.11)\sdk
+REM Set paths
+set "SCRIPT_DIR=%~dp0"
+cd /d "%SCRIPT_DIR%"
 
-REM Check if SDK exists
-if not exist "%SDK_PATH%\zkemsdk.dll" (
-    echo ERROR: zkemsdk.dll not found in %SDK_PATH%
-    echo Please copy the SDK files to the project directory first
+set "SDK_DIR=%SCRIPT_DIR%..\..\Standalone-SDK\SDK_v6.2.4.11\sdk"
+set "MINGW_PATH=C:\Users\snatc\mingw64\bin\g++.exe"
+
+echo Checking SDK files...
+echo SDK Directory: %SDK_DIR%
+echo.
+
+REM Check if SDK DLL exists
+if not exist "%SDK_DIR%\zkemsdk.dll" (
+    echo [ERROR] zkemsdk.dll not found!
+    echo Expected location: %SDK_DIR%
+    echo.
+    echo Please ensure the ZK SDK is installed.
     pause
     exit /b 1
 )
 
-REM Compile with Visual Studio if available
+echo [OK] SDK files found
+echo.
+
+REM Check for Visual Studio compiler
+echo Checking for Visual Studio compiler...
 where cl.exe >nul 2>&1
 if %errorlevel% equ 0 (
-    cl.exe /EHsc /O2 /std:c++17 /I"%SDK_PATH%" zkteco-cli.cpp /link /LIBPATH:"%SDK_PATH%" zkemsdk.lib ws2_32.lib
+    echo [OK] Visual Studio compiler found
+    echo Compiling with Visual Studio...
+    cl.exe /EHsc /O2 /std:c++17 /I"%SDK_DIR%" zkteco-cli.cpp /link /LIBPATH:"%SDK_DIR%" zkemsdk.lib ws2_32.lib
     if %errorlevel% neq 0 (
-        echo ERROR: Compilation failed
+        echo [ERROR] Compilation failed
+        pause
         exit /b 1
     )
-    echo SUCCESS: zkteco-cli.exe created
-    goto :end
+    echo.
+    echo [SUCCESS] zkteco-cli.exe created successfully!
+    goto success
 )
 
-REM Compile with MinGW as fallback
+REM Check for MinGW at known location
+echo Visual Studio not found, checking for MinGW...
+if exist "%MINGW_PATH%" (
+    echo [OK] MinGW found at: %MINGW_PATH%
+    echo Compiling with MinGW...
+    "%MINGW_PATH%" -std=c++17 -O2 -I"%SDK_DIR%" -DWIN32 zkteco-cli.cpp -o zkteco-cli.exe -L"%SDK_DIR%" -lzkemsdk -lws2_32
+    if %errorlevel% neq 0 (
+        echo [ERROR] Compilation failed
+        pause
+        exit /b 1
+    )
+    echo.
+    echo [SUCCESS] zkteco-cli.exe created successfully with MinGW!
+    goto success
+)
+
+REM Check for g++ in PATH
 where g++.exe >nul 2>&1
 if %errorlevel% equ 0 (
-    g++ -std=c++17 -O2 -I"%SDK_PATH%" -DWIN32 zkteco-cli.cpp -o zkteco-cli.exe -L"%SDK_PATH%" -lzkemsdk -lws2_32
+    echo [OK] MinGW found in PATH
+    echo Compiling with MinGW...
+    g++ -std=c++17 -O2 -I"%SDK_DIR%" -DWIN32 zkteco-cli.cpp -o zkteco-cli.exe -L"%SDK_DIR%" -lzkemsdk -lws2_32
     if %errorlevel% neq 0 (
-        echo ERROR: Compilation failed
+        echo [ERROR] Compilation failed
+        pause
         exit /b 1
     )
-    echo SUCCESS: zkteco-cli.exe created with MinGW
-    goto :end
+    echo.
+    echo [SUCCESS] zkteco-cli.exe created successfully with MinGW!
+    goto success
 )
 
-echo ERROR: Neither cl.exe nor g++.exe found
-echo Please install Visual Studio or MinGW to compile
+echo [ERROR] No C++ compiler found!
+echo.
+echo Checked:
+echo  - Visual Studio (cl.exe)
+echo  - MinGW at: %MINGW_PATH%
+echo  - g++ in PATH
+echo.
 pause
 exit /b 1
 
-:end
+:success
+echo.
+echo ========================================
+echo NEXT STEPS:
+echo ========================================
+echo.
+echo 1. Test scanner:
+echo    zkteco-cli.exe --test
+echo.
+echo 2. Capture fingerprint:
+echo    zkteco-cli.exe --capture
+echo.
+echo 3. Start bridge in CLI mode:
+echo    cd ..
+echo    set ZK_INTEGRATION_MODE=cli
+echo    node server.js
+echo.
+pause
+exit /b 0

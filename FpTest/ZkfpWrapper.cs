@@ -128,5 +128,141 @@ namespace FpTest
                 return null;
             return Convert.FromBase64String(base64);
         }
+        
+        // ===== FPCacheDB Helper Methods =====
+        
+        /// <summary>
+        /// Add fingerprint template to cache using string format (auto converts to binary)
+        /// Templates from ZKTeco devices are in base64 string format
+        /// </summary>
+        /// <param name="dbHandle">Handle from ZKFPM_DBInit()</param>
+        /// <param name="fid">Fingerprint ID (unique identifier)</param>
+        /// <param name="templateStr">Template as base64 string</param>
+        /// <returns>0 = success, other = error</returns>
+        public static int AddRegTemplateStrToFPCacheDB(IntPtr dbHandle, int fid, string templateStr)
+        {
+            if (string.IsNullOrEmpty(templateStr))
+                return -1;
+                
+            try
+            {
+                // ZKTeco templates from SSR_GetUserTmpStr are NOT base64!
+                // They are hexadecimal strings - need to convert to bytes
+                byte[] templateBytes;
+                
+                // Check if it's base64 or hex
+                if (templateStr.Length > 0 && IsHexString(templateStr))
+                {
+                    // Convert hex string to bytes
+                    templateBytes = HexStringToBytes(templateStr);
+                }
+                else
+                {
+                    // Try base64
+                    templateBytes = Convert.FromBase64String(templateStr);
+                }
+                
+                if (templateBytes == null || templateBytes.Length < 100)
+                    return -2;
+                    
+                return ZKFPM_DBAdd(dbHandle, fid, templateBytes, templateBytes.Length);
+            }
+            catch
+            {
+                return -3;
+            }
+        }
+        
+        private static bool IsHexString(string str)
+        {
+            if (string.IsNullOrEmpty(str)) return false;
+            // Hex strings only contain 0-9, A-F
+            foreach (char c in str.ToUpperInvariant())
+            {
+                if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')))
+                    return false;
+            }
+            return true;
+        }
+        
+        private static byte[] HexStringToBytes(string hex)
+        {
+            if (string.IsNullOrEmpty(hex) || hex.Length % 2 != 0)
+                return null;
+                
+            byte[] bytes = new byte[hex.Length / 2];
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                bytes[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+            }
+            return bytes;
+        }
+        
+        /// <summary>
+        /// Identify fingerprint in cache using binary template
+        /// </summary>
+        public static int IdentificationInFPCacheDB(IntPtr dbHandle, object capturedTemplate, ref object score, ref object processedNum)
+        {
+            byte[] templateBytes = capturedTemplate as byte[];
+            if (templateBytes == null || templateBytes.Length == 0)
+            {
+                score = 0;
+                processedNum = 0;
+                return -1;
+            }
+            
+            int fid = 0;
+            int scoreInt = 0;
+            int result = ZKFPM_DBIdentify(dbHandle, templateBytes, templateBytes.Length, ref fid, ref scoreInt);
+            
+            score = scoreInt;
+            processedNum = ZKFPM_DBCount(dbHandle); // Get number of templates in DB
+            
+            return result == 0 ? fid : -1;
+        }
+        
+        /// <summary>
+        /// Create a new FPCacheDB
+        /// </summary>
+        public static IntPtr CreateFPCacheDB()
+        {
+            return ZKFPM_DBInit();
+        }
+        
+        /// <summary>
+        /// Close and free FPCacheDB
+        /// </summary>
+        public static int CloseFPCacheDB(IntPtr dbHandle)
+        {
+            return ZKFPM_DBFree(dbHandle);
+        }
+        
+        /// <summary>
+        /// Get count of templates in cache
+        /// </summary>
+        public static int GetFPCacheDBCount(IntPtr dbHandle)
+        {
+            return ZKFPM_DBCount(dbHandle);
+        }
+        
+        /// <summary>
+        /// Clear all templates from cache
+        /// </summary>
+        public static int ClearFPCacheDB(IntPtr dbHandle)
+        {
+            return ZKFPM_DBClear(dbHandle);
+        }
+        
+        // Properties for compatibility (not actually settable in this lib)
+        public static string FPEngineVersion { get; set; } = "10";
+        public static int InitEngine() => ZKFPM_Init();
+        public static int Terminate() => ZKFPM_Terminate();
+        
+        // Image display (placeholder - requires additional implementation)
+        public static int PrintImageAt(int hdc, int x, int y, int width, int height)
+        {
+            // This would need specific image handling - return success for now
+            return 0;
+        }
     }
 }

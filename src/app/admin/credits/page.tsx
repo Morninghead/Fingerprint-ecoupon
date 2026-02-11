@@ -134,7 +134,7 @@ export default function CreditsPage() {
                 {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">Meal Credit Management</h1>
-                    <p className="mt-2 text-gray-600">Add, view, and manage employee meal credits</p>
+                    <p className="mt-2 text-gray-700">Add, view, and manage employee meal credits</p>
                 </div>
 
                 {/* Message */}
@@ -148,7 +148,7 @@ export default function CreditsPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* Add Credits Form */}
                     <div className="bg-white rounded-lg shadow p-6">
-                        <h2 className="text-xl font-semibold mb-4">Add Bulk Credits</h2>
+                        <h2 className="text-xl font-semibold text-gray-900 mb-4">Add Bulk Credits</h2>
 
                         {/* Employee Selection */}
                         <div className="mb-4">
@@ -172,8 +172,8 @@ export default function CreditsPage() {
                                             onChange={() => toggleEmployee(employee.id)}
                                             className="mr-3"
                                         />
-                                        <span className="text-sm">
-                                            {employee.name} <span className="text-gray-500">(PIN: {employee.pin})</span>
+                                        <span className="text-sm text-gray-900">
+                                            {employee.name} <span className="text-gray-700">(PIN: {employee.pin})</span>
                                         </span>
                                     </label>
                                 ))}
@@ -190,7 +190,7 @@ export default function CreditsPage() {
                                     type="date"
                                     value={startDate}
                                     onChange={(e) => setStartDate(e.target.value)}
-                                    className="w-full border rounded-lg px-3 py-2"
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 font-medium"
                                 />
                             </div>
                             <div>
@@ -201,7 +201,7 @@ export default function CreditsPage() {
                                     type="date"
                                     value={endDate}
                                     onChange={(e) => setEndDate(e.target.value)}
-                                    className="w-full border rounded-lg px-3 py-2"
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 font-medium"
                                 />
                             </div>
                         </div>
@@ -218,7 +218,7 @@ export default function CreditsPage() {
                                     max="10"
                                     value={lunchCredit}
                                     onChange={(e) => setLunchCredit(parseInt(e.target.value))}
-                                    className="w-full border rounded-lg px-3 py-2"
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 font-medium"
                                 />
                             </div>
                             <div>
@@ -231,7 +231,7 @@ export default function CreditsPage() {
                                     max="10"
                                     value={otMealCredit}
                                     onChange={(e) => setOtMealCredit(parseInt(e.target.value))}
-                                    className="w-full border rounded-lg px-3 py-2"
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 font-medium"
                                 />
                             </div>
                         </div>
@@ -271,14 +271,14 @@ export default function CreditsPage() {
                     {/* View Credits */}
                     <div className="bg-white rounded-lg shadow p-6">
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-semibold">Current Credits</h2>
+                            <h2 className="text-xl font-semibold text-gray-900">Current Credits</h2>
                             <div>
-                                <label className="text-sm text-gray-600 mr-2">From:</label>
+                                <label className="text-sm text-gray-800 mr-2">From:</label>
                                 <input
                                     type="date"
                                     value={filterDate}
                                     onChange={(e) => setFilterDate(e.target.value)}
-                                    className="border rounded px-2 py-1 text-sm"
+                                    className="border border-gray-300 rounded px-2 py-1 text-sm text-gray-900 font-medium"
                                 />
                             </div>
                         </div>
@@ -287,22 +287,22 @@ export default function CreditsPage() {
                             <table className="w-full text-sm">
                                 <thead className="bg-gray-50 sticky top-0">
                                     <tr>
-                                        <th className="text-left p-2">Employee</th>
-                                        <th className="text-left p-2">Date</th>
-                                        <th className="text-center p-2">Lunch</th>
-                                        <th className="text-center p-2">OT</th>
+                                        <th className="text-left p-2 text-gray-900 font-semibold">Employee</th>
+                                        <th className="text-left p-2 text-gray-900 font-semibold">Date</th>
+                                        <th className="text-center p-2 text-gray-900 font-semibold">Lunch</th>
+                                        <th className="text-center p-2 text-gray-900 font-semibold">OT</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {credits.map((credit) => (
                                         <tr key={credit.id} className="border-t hover:bg-gray-50">
                                             <td className="p-2">
-                                                {credit.employees.name}
-                                                <span className="text-gray-500 text-xs ml-1">
+                                                <span className="text-gray-900 font-medium">{credit.employees.name}</span>
+                                                <span className="text-gray-700 text-xs ml-1">
                                                     ({credit.employees.pin})
                                                 </span>
                                             </td>
-                                            <td className="p-2">{credit.date}</td>
+                                            <td className="p-2 text-gray-900">{credit.date}</td>
                                             <td className="text-center p-2">
                                                 <span className={credit.lunch_available ? 'text-green-600 font-semibold' : 'text-gray-400'}>
                                                     {credit.lunch_available ? '✓' : '✗'}
@@ -325,7 +325,7 @@ export default function CreditsPage() {
                             )}
                         </div>
 
-                        <div className="mt-4 pt-4 border-t text-sm text-gray-600">
+                        <div className="mt-4 pt-4 border-t text-sm text-gray-800">
                             <p>Total: {credits.length} credit entries</p>
                         </div>
                     </div>

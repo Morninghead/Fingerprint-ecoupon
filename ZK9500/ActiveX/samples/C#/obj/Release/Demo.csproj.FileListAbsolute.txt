@@ -1,0 +1,23 @@
+E:\全部安装包\NEW\版本发布\新ZKFinger SDK\20170320\ZKFinger SDK 5.3\Pro\ActiveX\samples\C#\bin\Release\demo.exe.config
+E:\全部安装包\NEW\版本发布\新ZKFinger SDK\20170320\ZKFinger SDK 5.3\Pro\ActiveX\samples\C#\obj\Release\Interop.ZKFPEngXControl.dll
+E:\全部安装包\NEW\版本发布\新ZKFinger SDK\20170320\ZKFinger SDK 5.3\Pro\ActiveX\samples\C#\obj\Release\AxInterop.ZKFPEngXControl.dll
+E:\全部安装包\NEW\版本发布\新ZKFinger SDK\20170320\ZKFinger SDK 5.3\Pro\ActiveX\samples\C#\obj\Release\Demo.csproj.ResolveComReference.cache
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\bin\Release\demo.exe.config
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\bin\Release\demo.exe.manifest
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\bin\Release\demo.application
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\bin\Release\demo.exe
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\bin\Release\demo.pdb
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\bin\Release\Interop.ZKFPEngXControl.dll
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\bin\Release\AxInterop.ZKFPEngXControl.dll
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\Demo.csproj.AssemblyReference.cache
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\Interop.ZKFPEngXControl.dll
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\AxInterop.ZKFPEngXControl.dll
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\Demo.csproj.ResolveComReference.cache
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\Biokey01.Form1.resources
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\Biokey01.Properties.Resources.resources
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\Demo.csproj.GenerateResource.cache
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\Demo.csproj.CoreCompileInputs.cache
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\demo.exe.manifest
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\demo.application
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\demo.exe
+X:\zk4500SDK\ZK9500\ActiveX\samples\C#\obj\Release\demo.pdb

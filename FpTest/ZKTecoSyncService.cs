@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ namespace FpTest
 {
     /// <summary>
     /// Sync attendance from ZKTeco devices to Supabase
-    /// Uses ZKTeco SOAP/SDK to connect to devices by IP
+    /// Uses incremental sync - only syncs new data since last sync
     /// </summary>
     public class ZKTecoSyncService
     {
@@ -21,6 +22,15 @@ namespace FpTest
         // Device configurations
         private readonly List<DeviceConfig> _devices = new List<DeviceConfig>();
         
+        // State file for incremental sync
+        private readonly string _stateFilePath;
+        private SyncState _state;
+        
+        // Sync window: number of days to sync back for FIRST TIME only
+        private const int FIRST_SYNC_DAYS = 7;
+        // Safety margin: always sync at least 1 day back to catch edge cases
+        private const int SAFETY_DAYS = 1;
+        
         public ZKTecoSyncService(string supabaseUrl, string supabaseKey)
         {
             _supabaseUrl = supabaseUrl.TrimEnd('/');
@@ -28,12 +38,71 @@ namespace FpTest
             _http = new HttpClient();
             _http.DefaultRequestHeaders.Add("apikey", _supabaseKey);
             _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {_supabaseKey}");
+            
+            // State file in app directory
+            _stateFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fptest-sync-state.json");
+            LoadState();
         }
         
         public void AddDevice(string name, string ip, int port = 4370)
         {
             _devices.Add(new DeviceConfig { Name = name, IP = ip, Port = port });
         }
+        
+        #region State Management
+        
+        private void LoadState()
+        {
+            try
+            {
+                if (File.Exists(_stateFilePath))
+                {
+                    var json = File.ReadAllText(_stateFilePath);
+                    _state = JsonConvert.DeserializeObject<SyncState>(json) ?? new SyncState();
+                }
+                else
+                {
+                    _state = new SyncState();
+                }
+            }
+            catch
+            {
+                _state = new SyncState();
+            }
+        }
+        
+        private void SaveState()
+        {
+            try
+            {
+                var json = JsonConvert.SerializeObject(_state, Formatting.Indented);
+                File.WriteAllText(_stateFilePath, json);
+            }
+            catch { }
+        }
+        
+        private DateTime GetSyncStartDate(string deviceIp)
+        {
+            // Check if we have last sync time for this device
+            if (_state.LastSyncPerDevice.TryGetValue(deviceIp, out var lastSync))
+            {
+                // Use last sync time minus safety margin
+                var syncFrom = lastSync.AddDays(-SAFETY_DAYS);
+                return syncFrom.Date;
+            }
+            
+            // First time: sync FIRST_SYNC_DAYS back
+            return DateTime.Today.AddDays(-FIRST_SYNC_DAYS);
+        }
+        
+        private void UpdateLastSync(string deviceIp, DateTime latestRecord)
+        {
+            _state.LastSyncPerDevice[deviceIp] = latestRecord;
+            _state.LastRun = DateTime.Now;
+            SaveState();
+        }
+        
+        #endregion
         
         /// <summary>
         /// Sync attendance from all configured devices
@@ -42,25 +111,45 @@ namespace FpTest
         {
             var result = new SyncResult();
             
-            log?.Invoke($"🔄 เริ่ม Sync จาก {_devices.Count} devices...");
+            // Show sync mode
+            var isFirstSync = _state.LastRun == DateTime.MinValue;
+            if (isFirstSync)
+            {
+                log?.Invoke($"🔄 Sync ครั้งแรก - ดึงข้อมูล {FIRST_SYNC_DAYS} วันย้อนหลัง");
+            }
+            else
+            {
+                log?.Invoke($"🔄 Incremental Sync จาก {_state.LastRun:dd/MM HH:mm}");
+            }
+            
+            log?.Invoke($"📡 {_devices.Count} devices...");
             
             foreach (var device in _devices)
             {
                 try
                 {
-                    log?.Invoke($"📡 กำลังเชื่อมต่อ {device.Name} ({device.IP})...");
+                    var syncStart = GetSyncStartDate(device.IP);
+                    var deviceResult = await SyncDeviceAsync(device, syncStart, log);
                     
-                    var deviceResult = await SyncDeviceAsync(device, log);
-                    result.TotalRecords += deviceResult.TotalRecords;
-                    result.NewRecords += deviceResult.NewRecords;
-                    result.DevicesSynced++;
-                    
-                    log?.Invoke($"✅ {device.Name}: {deviceResult.NewRecords} รายการใหม่");
+                    if (deviceResult != null)
+                    {
+                        result.TotalRecords += deviceResult.TotalRecords;
+                        result.NewRecords += deviceResult.NewRecords;
+                        
+                        if (deviceResult.NewRecords > 0)
+                        {
+                            result.DevicesSynced++;
+                            log?.Invoke($"✅ {device.Name}: +{deviceResult.NewRecords} รายการใหม่");
+                        }
+                        else if (deviceResult.TotalRecords > 0)
+                        {
+                            log?.Invoke($"✅ {device.Name}: ไม่มีข้อมูลใหม่");
+                        }
+                    }
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     result.Errors++;
-                    log?.Invoke($"❌ {device.Name}: {ex.Message}");
                 }
             }
             
@@ -70,58 +159,54 @@ namespace FpTest
                 await CreateTodayMealCreditsAsync(log);
             }
             
+            // แสดง 10 attendance ล่าสุดจาก Supabase เสมอ
+            await ShowRecentAttendanceAsync(log);
+            
             return result;
         }
         
-        private async Task<SyncResult> SyncDeviceAsync(DeviceConfig device, Action<string> log)
+        private async Task<SyncResult> SyncDeviceAsync(DeviceConfig device, DateTime syncFrom, Action<string> log)
         {
             var result = new SyncResult();
-            
-            // Try to connect via ZKTeco SDK
-            // For now, use HTTP/SOAP if available
             
             try
             {
                 // Method 1: Try SOAP API (if device supports it)
-                var soapResult = await TrySoapSyncAsync(device, log);
+                var soapResult = await TrySoapSyncAsync(device, syncFrom, log);
                 if (soapResult != null)
                 {
                     return soapResult;
                 }
                 
                 // Method 2: Try direct SDK connection
-                // This requires the ZKTeco SDK to be installed
-                var sdkResult = await TrySdkSyncAsync(device, log);
+                var sdkResult = await TrySdkSyncAsync(device, syncFrom, log);
                 if (sdkResult != null)
                 {
                     return sdkResult;
                 }
-                
-                log?.Invoke($"⚠️ ไม่สามารถเชื่อมต่อ {device.Name} ได้ - ข้าม");
             }
-            catch (Exception ex)
+            catch
             {
-                log?.Invoke($"❌ Error syncing {device.Name}: {ex.Message}");
+                // Device unreachable - skip quietly
             }
             
             return result;
         }
         
-        private async Task<SyncResult> TrySoapSyncAsync(DeviceConfig device, Action<string> log)
+        private async Task<SyncResult> TrySoapSyncAsync(DeviceConfig device, DateTime syncFrom, Action<string> log)
         {
             try
             {
                 // ZKTeco SOAP endpoint
                 var soapUrl = $"http://{device.IP}/iWsService";
                 
-                // Try to ping first
+                // Try to ping first (fast timeout)
                 using (var ping = new System.Net.NetworkInformation.Ping())
                 {
-                    var reply = ping.Send(device.IP, 2000);
+                    var reply = ping.Send(device.IP, 500); // 500ms timeout
                     if (reply.Status != System.Net.NetworkInformation.IPStatus.Success)
                     {
-                        log?.Invoke($"⚠️ {device.IP} ไม่ตอบสนอง");
-                        return null;
+                        return null; // Skip quietly
                     }
                 }
                 
@@ -144,7 +229,7 @@ namespace FpTest
                 if (response.IsSuccessStatusCode)
                 {
                     var xml = await response.Content.ReadAsStringAsync();
-                    return await ParseAndSaveAttendanceAsync(xml, device, log);
+                    return await ParseAndSaveAttendanceAsync(xml, device, syncFrom, log);
                 }
             }
             catch (Exception ex)
@@ -156,25 +241,24 @@ namespace FpTest
             return null;
         }
         
-        private async Task<SyncResult> TrySdkSyncAsync(DeviceConfig device, Action<string> log)
+        private async Task<SyncResult> TrySdkSyncAsync(DeviceConfig device, DateTime syncFrom, Action<string> log)
         {
             var result = new SyncResult();
+            DateTime? latestRecordTime = null;
             
             try
             {
                 // Try ZKTeco SDK (zkemkeeper)
                 Type zkemType = Type.GetTypeFromProgID("zkemkeeper.ZKEM.1");
                 if (zkemType == null)
-                {
-                    log?.Invoke($"   SDK (zkemkeeper) ไม่พบ");
                     return null;
-                }
                 
                 dynamic zkem = Activator.CreateInstance(zkemType);
                 
                 if (zkem.Connect_Net(device.IP, device.Port))
                 {
-                    log?.Invoke($"   เชื่อมต่อ SDK สำเร็จ");
+                    log?.Invoke($"📡 เชื่อมต่อ {device.Name} ({device.IP}) สำเร็จ");
+                    log?.Invoke($"   📅 Sync ตั้งแต่: {syncFrom:dd/MM/yyyy}");
                     
                     // Get attendance logs
                     if (zkem.ReadGeneralLogData(1))
@@ -191,47 +275,61 @@ namespace FpTest
                         {
                             var checkTime = new DateTime(dwYear, dwMonth, dwDay, dwHour, dwMinute, dwSecond);
                             
-                            // Only sync today's records
-                            if (checkTime.Date == DateTime.Today)
+                            // Filter by sync start date AND valid range
+                            // Skip future dates and dates before 2025
+                            var maxValidDate = DateTime.Today.AddDays(1); // Tomorrow is max
+                            var minValidDate = new DateTime(2025, 1, 1);
+                            
+                            if (checkTime >= syncFrom && checkTime < maxValidDate && checkTime >= minValidDate)
                             {
-                                var saved = await SaveAttendanceRecordAsync(dwEnrollNumber, checkTime, 
-                                    dwInOutMode == 0 ? "IN" : "OUT", device.Name);
+                                var saved = await SaveAttendanceRecordAsync(dwEnrollNumber, checkTime, "SCAN", device.IP, dwInOutMode);
+                                
+                                // Log record (without raw state)
+                                var status = saved ? "✅ NEW" : "⏭️ DUP";
+                                log?.Invoke($"   {status} {checkTime:dd/MM HH:mm} | PIN:{dwEnrollNumber}");
                                 
                                 if (saved)
                                     result.NewRecords++;
                                 
                                 result.TotalRecords++;
+                                
+                                // Track latest record for state update
+                                if (!latestRecordTime.HasValue || checkTime > latestRecordTime.Value)
+                                    latestRecordTime = checkTime;
                             }
+                            // Skip invalid dates silently (future or too old)
                         }
                     }
                     
                     zkem.Disconnect();
+                    
+                    // Update last sync time if we got records
+                    if (latestRecordTime.HasValue)
+                    {
+                        UpdateLastSync(device.IP, latestRecordTime.Value);
+                    }
                 }
                 else
                 {
-                    log?.Invoke($"   ไม่สามารถเชื่อมต่อ SDK");
                     return null;
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                log?.Invoke($"   SDK error: {ex.Message}");
                 return null;
             }
             
             return result;
         }
         
-        private async Task<SyncResult> ParseAndSaveAttendanceAsync(string xml, DeviceConfig device, Action<string> log)
+        private async Task<SyncResult> ParseAndSaveAttendanceAsync(string xml, DeviceConfig device, DateTime syncFrom, Action<string> log)
         {
             var result = new SyncResult();
+            DateTime? latestRecordTime = null;
             
             // Parse SOAP response - format varies by device
-            // This is a simplified parser
             try
             {
-                // Look for attendance data in response
-                // Format: <Row><PIN>12345</PIN><DateTime>2024-02-06 08:30:00</DateTime><Status>0</Status></Row>
                 var doc = new System.Xml.XmlDocument();
                 doc.LoadXml(xml);
                 
@@ -244,17 +342,35 @@ namespace FpTest
                     
                     if (!string.IsNullOrEmpty(pin) && DateTime.TryParse(dateTimeStr, out var checkTime))
                     {
-                        if (checkTime.Date == DateTime.Today)
+                        // Filter by sync start date AND valid range
+                        var maxValidDate = DateTime.Today.AddDays(1);
+                        var minValidDate = new DateTime(2025, 1, 1);
+                        
+                        if (checkTime >= syncFrom && checkTime < maxValidDate && checkTime >= minValidDate)
                         {
-                            var saved = await SaveAttendanceRecordAsync(pin, checkTime, 
-                                status == "0" ? "IN" : "OUT", device.Name);
+                            var rawState = int.TryParse(status, out var s) ? s : 0;
+                            var saved = await SaveAttendanceRecordAsync(pin, checkTime, "SCAN", device.IP, rawState);
+                            
+                            // Log record (without raw state)
+                            var logStatus = saved ? "✅ NEW" : "⏭️ DUP";
+                            log?.Invoke($"   {logStatus} {checkTime:dd/MM HH:mm} | PIN:{pin}");
                             
                             if (saved)
                                 result.NewRecords++;
                             
                             result.TotalRecords++;
+                            
+                            // Track latest record
+                            if (!latestRecordTime.HasValue || checkTime > latestRecordTime.Value)
+                                latestRecordTime = checkTime;
                         }
                     }
+                }
+                
+                // Update last sync time
+                if (latestRecordTime.HasValue)
+                {
+                    UpdateLastSync(device.IP, latestRecordTime.Value);
                 }
             }
             catch (Exception ex)
@@ -264,28 +380,19 @@ namespace FpTest
             
             return result;
         }
-        
-        private async Task<bool> SaveAttendanceRecordAsync(string employeeCode, DateTime checkTime, string checkType, string deviceName)
+
+        private async Task<bool> SaveAttendanceRecordAsync(string employeeCode, DateTime checkTime, string checkType, string deviceName, int rawState = 0)
         {
             try
             {
-                // Get employee ID from Supabase
-                var empResponse = await _http.GetStringAsync(
-                    $"{_supabaseUrl}/rest/v1/employees?employee_code=eq.{employeeCode}&select=id");
-                
-                var employees = JArray.Parse(empResponse);
-                if (employees.Count == 0)
-                    return false;
-                
-                var employeeId = employees[0]["id"].ToString();
-                
-                // Insert attendance (ignore duplicates)
                 var attendance = new
                 {
-                    employee_id = employeeId,
-                    check_time = checkTime.ToString("o"),
-                    check_type = checkType,
-                    device_sn = deviceName
+                    employee_code = employeeCode,
+                    // เวลาจากเครื่อง ZKTeco เป็นเวลาไทย (UTC+7) - ระบุ timezone ให้ชัด
+                    check_time = checkTime.ToString("yyyy-MM-ddTHH:mm:ss+07:00"),
+                    // check_type ไม่ส่ง - schema เป็น VARCHAR(1) แต่เราต้องการ "SCAN"
+                    raw_state = rawState,
+                    device_ip = deviceName
                 };
                 
                 var content = new StringContent(
@@ -293,13 +400,30 @@ namespace FpTest
                     Encoding.UTF8,
                     "application/json");
                 
-                content.Headers.Add("Prefer", "resolution=ignore-duplicates");
+                // ใช้ Prefer: resolution=ignore-duplicates สำหรับ upsert
+                content.Headers.Add("Prefer", "resolution=ignore-duplicates,return=minimal");
                 
-                var response = await _http.PostAsync($"{_supabaseUrl}/rest/v1/attendance", content);
-                return response.IsSuccessStatusCode;
+                var response = await _http.PostAsync(
+                    $"{_supabaseUrl}/rest/v1/attendance", 
+                    content);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync();
+                    // Check if it's a duplicate error (23505 = unique violation)
+                    if (errorBody.Contains("23505") || errorBody.Contains("duplicate"))
+                    {
+                        return false; // Duplicate - expected
+                    }
+                    Console.WriteLine($"❌ Save error: {response.StatusCode} - {errorBody}");
+                    return false;
+                }
+                
+                return true;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"❌ Exception: {ex.Message}");
                 return false;
             }
         }
@@ -310,24 +434,75 @@ namespace FpTest
             {
                 var today = DateTime.Today.ToString("yyyy-MM-dd");
                 
-                // Get employees who checked in today but don't have meal credits
-                var sql = $@"
-                    INSERT INTO meal_credits (employee_id, date, lunch_available, ot_meal_available)
-                    SELECT DISTINCT a.employee_id, '{today}'::date, true, false
-                    FROM attendance a
-                    WHERE DATE(a.check_time AT TIME ZONE 'Asia/Bangkok') = '{today}'::date
-                    AND NOT EXISTS (
-                        SELECT 1 FROM meal_credits mc 
-                        WHERE mc.employee_id = a.employee_id AND mc.date = '{today}'::date
-                    )";
+                log?.Invoke($"💳 กำลังให้สิทธิ์ meal credits สำหรับวันที่ {today}...");
                 
-                // Use Supabase RPC or direct SQL
-                // For simplicity, we'll let the trigger handle it
-                log?.Invoke($"💳 Meal credits จะถูกสร้างอัตโนมัติผ่าน trigger");
+                var apiUrl = "http://localhost:3000/api/auto-grant-credits";
+                var requestBody = new { date = today, grantOT = false };
+                
+                var content = new StringContent(
+                    JsonConvert.SerializeObject(requestBody),
+                    Encoding.UTF8,
+                    "application/json");
+                
+                using (var client = new HttpClient())
+                {
+                    client.Timeout = TimeSpan.FromSeconds(30);
+                    var response = await client.PostAsync(apiUrl, content);
+                    
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var result = await response.Content.ReadAsStringAsync();
+                        var json = JObject.Parse(result);
+                        var lunchGranted = json["lunchGranted"]?.Value<int>() ?? 0;
+                        var employees = json["employeesWithAttendance"]?.Value<int>() ?? 0;
+                        
+                        log?.Invoke($"✅ ให้สิทธิ์ lunch แล้ว {lunchGranted} คน (จากพนักงานที่มา {employees} คน)");
+                    }
+                    else
+                    {
+                        log?.Invoke($"⚠️ API error: {response.StatusCode}");
+                    }
+                }
             }
             catch (Exception ex)
             {
-                log?.Invoke($"⚠️ Credit creation: {ex.Message}");
+                log?.Invoke($"⚠️ ให้สิทธิ์ meal credit ล้มเหลว: {ex.Message}");
+                log?.Invoke($"   (ตรวจสอบว่า Next.js server รันอยู่ที่ localhost:3000)");
+            }
+        }
+        
+        private async Task ShowRecentAttendanceAsync(Action<string> log)
+        {
+            try
+            {
+                var response = await _http.GetStringAsync(
+                    $"{_supabaseUrl}/rest/v1/attendance?order=check_time.desc&limit=10&select=employee_code,check_time,check_type,device_ip");
+                
+                var records = JArray.Parse(response);
+                
+                if (records.Count > 0)
+                {
+                    log?.Invoke($"📋 Attendance ล่าสุดใน Supabase ({records.Count} รายการ):");
+                    foreach (var rec in records)
+                    {
+                        var pin = rec["employee_code"]?.ToString();
+                        var timeStr = rec["check_time"]?.ToString();
+                        var device = rec["device_ip"]?.ToString();
+                        
+                        if (DateTime.TryParse(timeStr, out var checkTime))
+                        {
+                            log?.Invoke($"   📌 {checkTime:dd/MM HH:mm} | PIN:{pin} | {device}");
+                        }
+                    }
+                }
+                else
+                {
+                    log?.Invoke($"📋 ไม่มี attendance ใน Supabase");
+                }
+            }
+            catch (Exception ex)
+            {
+                log?.Invoke($"⚠️ ดึง attendance: {ex.Message}");
             }
         }
     }
@@ -345,5 +520,11 @@ namespace FpTest
         public int TotalRecords { get; set; }
         public int NewRecords { get; set; }
         public int Errors { get; set; }
+    }
+    
+    public class SyncState
+    {
+        public DateTime LastRun { get; set; } = DateTime.MinValue;
+        public Dictionary<string, DateTime> LastSyncPerDevice { get; set; } = new Dictionary<string, DateTime>();
     }
 }

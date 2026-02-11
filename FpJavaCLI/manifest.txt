@@ -1,0 +1,4 @@
+Main-Class:
+com.zkteco.fp.FpScanner
+Class-Path:
+lib/ZKFingerReader.jar

@@ -62,7 +62,7 @@ export default function EmployeeManagementPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Employee Management</h1>
-            <p className="mt-1 text-gray-600">Manage your company employees</p>
+            <p className="mt-1 text-gray-700">Manage your company employees</p>
           </div>
           <div className="flex items-center gap-3">
             <a
@@ -98,7 +98,7 @@ export default function EmployeeManagementPage() {
                 <td className="px-6 py-4">
                   <div className="font-medium text-gray-900">{employee.name}</div>
                 </td>
-                <td className="px-6 py-4 text-gray-600">{employee.pin}</td>
+                <td className="px-6 py-4 text-gray-800 font-medium">{employee.pin}</td>
                 <td className="px-6 py-4">
                   {employee.fingerprint_template ? (
                     <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
@@ -161,7 +161,7 @@ function AddEmployeeModal({ onClose, onSave }: { onClose: () => void; onSave: (e
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
         <div className="p-6 border-b">
-          <h3 className="text-xl font-semibold">Add New Employee</h3>
+          <h3 className="text-xl font-semibold text-gray-900">Add New Employee</h3>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -173,7 +173,8 @@ function AddEmployeeModal({ onClose, onSave }: { onClose: () => void; onSave: (e
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+              placeholder="Enter employee name"
               required
             />
           </div>
@@ -186,7 +187,8 @@ function AddEmployeeModal({ onClose, onSave }: { onClose: () => void; onSave: (e
               type="text"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+              placeholder="e.g. 12345"
               required
             />
           </div>

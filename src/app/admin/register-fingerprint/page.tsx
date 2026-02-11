@@ -204,7 +204,7 @@ export default function RegisterFingerprintPage() {
                 {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">👆 Fingerprint Registration</h1>
-                    <p className="text-gray-600 mt-2">Register employee fingerprints for the E-Coupon system</p>
+                    <p className="text-gray-700 mt-2">Register employee fingerprints for the E-Coupon system</p>
                     <div className="mt-2">
                         <a href="/admin/employees" className="text-blue-600 hover:underline text-sm">
                             ← Back to Employee Management
@@ -231,8 +231,8 @@ export default function RegisterFingerprintPage() {
                                             }`}
                                     >
                                         <div>
-                                            <div className="font-medium">{emp.name}</div>
-                                            <div className="text-sm text-gray-700">PIN: {emp.pin}</div>
+                                            <div className="font-medium text-gray-900">{emp.name}</div>
+                                            <div className="text-sm text-gray-800">PIN: {emp.pin}</div>
                                         </div>
                                         <span className="text-red-500 text-sm">Not registered</span>
                                     </button>

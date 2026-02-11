@@ -1,0 +1,1079 @@
+[Mon 02/09/2026 17:00:01.15] Running auto sync... 
+[dotenv@17.2.3] injecting env (2) from ..\.env.local -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+════════════════════════════════════════════════════════════
+🔄 ATTENDANCE SYNC + AUTO-CREATE EMPLOYEES
+   Time: 9/2/2569 17:00:03
+   Mode: Night shift support (yesterday + today minimum)
+   Safety: 7-day default window
+════════════════════════════════════════════════════════════
+
+📋 Loading existing employees from Supabase...
+[Tue 02/10/2026  7:14:28.22] Running auto sync... 
+[dotenv@17.2.3] injecting env (2) from ..\.env.local -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+════════════════════════════════════════════════════════════
+🔄 ATTENDANCE SYNC + AUTO-CREATE EMPLOYEES
+   Time: 10/2/2569 07:14:32
+   Mode: Night shift support (yesterday + today minimum)
+   Safety: 7-day default window
+════════════════════════════════════════════════════════════
+
+📋 Loading existing employees from Supabase...
+   ✅ Found 1000 employees in Supabase
+
+📋 Last run: 9/2/2569 15:45:46
+
+📊 Last sync per device:
+   SSTH-Entrance: Never (will sync 7 days)
+   SSTH-Factory A: 21/5/2569 08:02:51
+   Haoli: 5/2/2569 17:25:45
+   PPS: 5/2/2569 17:06:06
+
+──────────────────────────────────────────────────
+📡 SSTH-Entrance (192.168.0.151)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 99933
+   📥 Fetched: 99933 total records
+   📅 First sync: using 7-day window
+   ✨ New logs to sync: 3210 records
+   📆 Range: 3/2/2569 → 10/2/2569
+
+──────────────────────────────────────────────────
+📡 SSTH-Factory A (192.168.0.152)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 30632
+   📥 Fetched: 30632 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 156 records
+   📆 Range: 9/2/2569 → 21/5/2569
+
+──────────────────────────────────────────────────
+📡 Haoli (192.168.0.153)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 14354
+   📥 Fetched: 14354 total records
+   📅 Using lastSync: 2026-02-05T10:25:45.000Z
+   ✨ New logs to sync: 1354 records
+   📆 Range: 5/2/2569 → 10/2/2569
+
+──────────────────────────────────────────────────
+📡 PPS (192.168.0.154)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 13637
+   📥 Fetched: 13637 total records
+   📅 Using lastSync: 2026-02-05T10:06:06.000Z
+   ✨ New logs to sync: 753 records
+   📆 Range: 5/2/2569 → 10/2/2569
+
+👤 Auto-creating 193 new employees...
+TCP connection successful
+TCP connection successful
+TCP connection successful
+TCP connection successful
+   ❌ Error creating employees: there is no unique or exclusion constraint matching the ON CONFLICT specification
+
+📤 Processing SSTH-Entrance...
+   📤 Uploading 3210 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 100 records
+   ✅ Batch 4: 100 records
+   ✅ Batch 5: 100 records
+   ✅ Batch 6: 100 records
+   ✅ Batch 7: 100 records
+   ✅ Batch 8: 100 records
+   ✅ Batch 9: 100 records
+   ✅ Batch 10: 100 records
+   ✅ Batch 11: 100 records
+   ✅ Batch 12: 100 records
+   ✅ Batch 13: 100 records
+   ✅ Batch 14: 100 records
+   ✅ Batch 15: 100 records
+   ✅ Batch 16: 100 records
+   ✅ Batch 17: 100 records
+   ✅ Batch 18: 100 records
+   ✅ Batch 19: 100 records
+   ✅ Batch 20: 100 records
+   ✅ Batch 21: 100 records
+   ✅ Batch 22: 100 records
+   ✅ Batch 23: 100 records
+   ✅ Batch 24: 100 records
+   ✅ Batch 25: 100 records
+   ✅ Batch 26: 100 records
+   ✅ Batch 27: 100 records
+   ✅ Batch 28: 100 records
+   ✅ Batch 29: 100 records
+   ✅ Batch 30: 100 records
+   ✅ Batch 31: 100 records
+   ✅ Batch 32: 100 records
+   ✅ Batch 33: 10 records
+   💾 Updated lastSync: 10/2/2569 07:14:30
+
+📤 Processing SSTH-Factory A...
+   📤 Uploading 156 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 56 records
+   💾 Updated lastSync: 21/5/2569 08:02:51
+
+📤 Processing Haoli...
+   📤 Uploading 1354 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 100 records
+   ✅ Batch 4: 100 records
+   ✅ Batch 5: 100 records
+   ✅ Batch 6: 100 records
+   ✅ Batch 7: 100 records
+   ✅ Batch 8: 100 records
+   ✅ Batch 9: 100 records
+   ✅ Batch 10: 100 records
+   ✅ Batch 11: 100 records
+   ✅ Batch 12: 100 records
+   ✅ Batch 13: 100 records
+   ✅ Batch 14: 54 records
+   💾 Updated lastSync: 10/2/2569 07:11:55
+
+📤 Processing PPS...
+   📤 Uploading 753 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 100 records
+   ✅ Batch 4: 100 records
+   ✅ Batch 5: 100 records
+   ✅ Batch 6: 100 records
+   ✅ Batch 7: 100 records
+   ✅ Batch 8: 53 records
+   💾 Updated lastSync: 10/2/2569 07:10:09
+
+════════════════════════════════════════════════════════════
+📊 SYNC SUMMARY
+════════════════════════════════════════════════════════════
+   Total new records found: 5473
+   Total inserted/updated:  5473
+   Errors:                  0
+════════════════════════════════════════════════════════════
+
+💳 Auto-granting meal credits...
+⚠️ Cannot grant meal credits: fetch failed
+   (Make sure Next.js server is running at localhost:3000)
+[Tue 02/10/2026  7:15:45.23] Sync completed. 
+ 
+[Tue 02/10/2026 10:00:02.32] Running auto sync... 
+[dotenv@17.2.3] injecting env (2) from ..\.env.local -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+════════════════════════════════════════════════════════════
+🔄 ATTENDANCE SYNC + AUTO-CREATE EMPLOYEES
+   Time: 10/2/2569 10:00:04
+   Mode: Night shift support (yesterday + today minimum)
+   Safety: 7-day default window
+════════════════════════════════════════════════════════════
+
+📋 Loading existing employees from Supabase...
+   ✅ Found 1000 employees in Supabase
+
+📋 Last run: 10/2/2569 07:15:45
+
+📊 Last sync per device:
+   SSTH-Entrance: 10/2/2569 07:14:30
+   SSTH-Factory A: 21/5/2569 08:02:51
+   Haoli: 10/2/2569 07:11:55
+   PPS: 10/2/2569 07:10:09
+
+──────────────────────────────────────────────────
+📡 SSTH-Entrance (192.168.0.151)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 99157
+   📥 Fetched: 29462 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 0 records
+
+──────────────────────────────────────────────────
+📡 SSTH-Factory A (192.168.0.152)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 30658
+   📥 Fetched: 30658 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 182 records
+   📆 Range: 9/2/2569 → 21/5/2569
+
+──────────────────────────────────────────────────
+📡 Haoli (192.168.0.153)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 14518
+   📥 Fetched: 14518 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 498 records
+   📆 Range: 9/2/2569 → 10/2/2569
+
+──────────────────────────────────────────────────
+📡 PPS (192.168.0.154)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 13728
+   📥 Fetched: 13728 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 288 records
+   📆 Range: 9/2/2569 → 10/2/2569
+
+👤 Auto-creating 162 new employees...
+TCP connection successful
+TCP connection successful
+TCP connection successful
+TCP connection successful
+   ❌ Error creating employees: there is no unique or exclusion constraint matching the ON CONFLICT specification
+
+📤 Processing SSTH-Entrance...
+   ℹ️ No new records
+
+📤 Processing SSTH-Factory A...
+   📤 Uploading 182 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 82 records
+   💾 Updated lastSync: 21/5/2569 08:02:51
+
+📤 Processing Haoli...
+   📤 Uploading 498 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 100 records
+   ✅ Batch 4: 100 records
+   ✅ Batch 5: 98 records
+   💾 Updated lastSync: 10/2/2569 09:02:58
+
+📤 Processing PPS...
+   📤 Uploading 288 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 88 records
+   💾 Updated lastSync: 10/2/2569 09:06:24
+
+════════════════════════════════════════════════════════════
+📊 SYNC SUMMARY
+════════════════════════════════════════════════════════════
+   Total new records found: 968
+   Total inserted/updated:  968
+   Errors:                  0
+════════════════════════════════════════════════════════════
+
+💳 Auto-granting meal credits...
+⚠️ Cannot grant meal credits: fetch failed
+   (Make sure Next.js server is running at localhost:3000)
+[Tue 02/10/2026 10:01:23.98] Sync completed. 
+ 
+[Tue 02/10/2026 11:30:02.57] Running auto sync... 
+[dotenv@17.2.3] injecting env (2) from ..\.env.local -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+════════════════════════════════════════════════════════════
+🔄 ATTENDANCE SYNC + AUTO-CREATE EMPLOYEES
+   Time: 10/2/2569 11:30:03
+   Mode: Night shift support (yesterday + today minimum)
+   Safety: 7-day default window
+════════════════════════════════════════════════════════════
+
+📋 Loading existing employees from Supabase...
+   ✅ Found 1000 employees in Supabase
+
+📋 Last run: 10/2/2569 10:01:17
+
+📊 Last sync per device:
+   SSTH-Entrance: 10/2/2569 07:14:30
+   SSTH-Factory A: 21/5/2569 08:02:51
+   Haoli: 10/2/2569 09:02:58
+   PPS: 10/2/2569 09:06:24
+
+──────────────────────────────────────────────────
+📡 SSTH-Entrance (192.168.0.151)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 99160
+   📥 Fetched: 39283 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 0 records
+
+──────────────────────────────────────────────────
+📡 SSTH-Factory A (192.168.0.152)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 30658
+   📥 Fetched: 30658 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 182 records
+   📆 Range: 9/2/2569 → 21/5/2569
+
+──────────────────────────────────────────────────
+📡 Haoli (192.168.0.153)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 14518
+   📥 Fetched: 14518 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 498 records
+   📆 Range: 9/2/2569 → 10/2/2569
+
+──────────────────────────────────────────────────
+📡 PPS (192.168.0.154)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 13730
+   📥 Fetched: 13730 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 290 records
+   📆 Range: 9/2/2569 → 10/2/2569
+
+👤 Auto-creating 162 new employees...
+TCP connection successful
+TCP connection successful
+TCP connection successful
+TCP connection successful
+   ❌ Error creating employees: there is no unique or exclusion constraint matching the ON CONFLICT specification
+
+📤 Processing SSTH-Entrance...
+   ℹ️ No new records
+
+📤 Processing SSTH-Factory A...
+   📤 Uploading 182 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 82 records
+   💾 Updated lastSync: 21/5/2569 08:02:51
+
+📤 Processing Haoli...
+   📤 Uploading 498 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 100 records
+   ✅ Batch 4: 100 records
+   ✅ Batch 5: 98 records
+   💾 Updated lastSync: 10/2/2569 09:02:58
+
+📤 Processing PPS...
+   📤 Uploading 290 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 90 records
+   💾 Updated lastSync: 10/2/2569 10:46:56
+
+════════════════════════════════════════════════════════════
+📊 SYNC SUMMARY
+════════════════════════════════════════════════════════════
+   Total new records found: 970
+   Total inserted/updated:  970
+   Errors:                  0
+════════════════════════════════════════════════════════════
+
+💳 Auto-granting meal credits...
+⚠️ Cannot grant meal credits: fetch failed
+   (Make sure Next.js server is running at localhost:3000)
+[Tue 02/10/2026 11:31:16.61] Sync completed. 
+ 
+[Tue 02/10/2026 14:00:02.90] Running auto sync... 
+[dotenv@17.2.3] injecting env (2) from ..\.env.local -- tip: ⚙️  enable debug logging with { debug: true }
+════════════════════════════════════════════════════════════
+🔄 ATTENDANCE SYNC + AUTO-CREATE EMPLOYEES
+   Time: 10/2/2569 14:00:03
+   Mode: Night shift support (yesterday + today minimum)
+   Safety: 7-day default window
+════════════════════════════════════════════════════════════
+
+📋 Loading existing employees from Supabase...
+   ✅ Found 1000 employees in Supabase
+
+📋 Last run: 10/2/2569 11:31:10
+
+📊 Last sync per device:
+   SSTH-Entrance: 10/2/2569 07:14:30
+   SSTH-Factory A: 21/5/2569 08:02:51
+   Haoli: 10/2/2569 09:02:58
+   PPS: 10/2/2569 10:46:56
+
+──────────────────────────────────────────────────
+📡 SSTH-Entrance (192.168.0.151)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+Error executing command: Error: TIMEOUT_ON_WRITING_MESSAGE
+    at Timeout._onTimeout (X:\FP-E-coupon\electron-bridge\node_modules\zkteco-js\src\ztcp.js:156:32)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+Error getting device info: Error: TIMEOUT_ON_WRITING_MESSAGE
+    at Timeout._onTimeout (X:\FP-E-coupon\electron-bridge\node_modules\zkteco-js\src\ztcp.js:156:32)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+❌ Error: undefined
+Error executing command: Error: TIMEOUT_ON_WRITING_MESSAGE
+    at Timeout._onTimeout (X:\FP-E-coupon\electron-bridge\node_modules\zkteco-js\src\ztcp.js:156:32)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+Error during disconnection: Error: TIMEOUT_ON_WRITING_MESSAGE
+    at Timeout._onTimeout (X:\FP-E-coupon\electron-bridge\node_modules\zkteco-js\src\ztcp.js:156:32)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+
+──────────────────────────────────────────────────
+📡 SSTH-Factory A (192.168.0.152)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 30659
+   📥 Fetched: 30659 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 183 records
+   📆 Range: 9/2/2569 → 21/5/2569
+
+──────────────────────────────────────────────────
+📡 Haoli (192.168.0.153)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 14518
+   📥 Fetched: 14518 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 498 records
+   📆 Range: 9/2/2569 → 10/2/2569
+
+──────────────────────────────────────────────────
+📡 PPS (192.168.0.154)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 13731
+   📥 Fetched: 13731 total records
+   📅 Using yesterday: 2026-02-08T17:00:00.000Z
+   ✨ New logs to sync: 291 records
+   📆 Range: 9/2/2569 → 10/2/2569
+
+👤 Auto-creating 162 new employees...
+Error executing command: Error: TIMEOUT_ON_WRITING_MESSAGE
+    at Timeout._onTimeout (X:\FP-E-coupon\electron-bridge\node_modules\zkteco-js\src\ztcp.js:156:32)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+Failed to connect: Error: TIMEOUT_ON_WRITING_MESSAGE
+    at Timeout._onTimeout (X:\FP-E-coupon\electron-bridge\node_modules\zkteco-js\src\ztcp.js:156:32)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+   ❌ Cannot fetch users from SSTH-Entrance: undefined
+TCP connection successful
+TCP connection successful
+TCP connection successful
+   ❌ Error creating employees: there is no unique or exclusion constraint matching the ON CONFLICT specification
+
+📤 Processing SSTH-Entrance...
+   ℹ️ No new records
+
+📤 Processing SSTH-Factory A...
+   📤 Uploading 183 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 83 records
+   💾 Updated lastSync: 21/5/2569 08:02:51
+
+📤 Processing Haoli...
+   📤 Uploading 498 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 100 records
+   ✅ Batch 4: 100 records
+   ✅ Batch 5: 98 records
+   💾 Updated lastSync: 10/2/2569 09:02:58
+
+📤 Processing PPS...
+   📤 Uploading 291 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 91 records
+   💾 Updated lastSync: 10/2/2569 11:39:05
+
+════════════════════════════════════════════════════════════
+📊 SYNC SUMMARY
+════════════════════════════════════════════════════════════
+   Total new records found: 972
+   Total inserted/updated:  972
+   Errors:                  0
+════════════════════════════════════════════════════════════
+
+💳 Auto-granting meal credits...
+⚠️ Cannot grant meal credits: fetch failed
+   (Make sure Next.js server is running at localhost:3000)
+[Tue 02/10/2026 14:01:50.14] Sync completed. 
+ 
+[Tue 02/10/2026 17:00:02.20] Running auto sync... 
+[dotenv@17.2.3] injecting env (2) from ..\.env.local -- tip: ⚙️  enable debug logging with { debug: true }
+════════════════════════════════════════════════════════════
+🔄 ATTENDANCE SYNC + AUTO-CREATE EMPLOYEES
+   Time: 10/2/2569 17:00:02
+   Mode: Night shift support (yesterday + today minimum)
+   Safety: 7-day default window
+════════════════════════════════════════════════════════════
+
+📋 Loading existing employees from Supabase...
+   ✅ Found 1000 employees in Supabase
+
+📋 Last run: 10/2/2569 14:00:41
+
+📊 Last sync per device:
+   SSTH-Entrance: 10/2/2569 07:14:30
+   SSTH-Factory A: 21/5/2569 08:02:51
+   Haoli: 10/2/2569 09:02:58
+   PPS: 10/2/2569 11:39:05
+
+──────────────────────────────────────────────────
+📡 SSTH-Entrance (192.168.0.151)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 99163
+Error executing command: Error: TIMEOUT_ON_WRITING_MESSAGE
+    at Timeout._onTimeout (X:\FP-E-coupon\electron-bridge\node_modules\zkteco-js\src\ztcp.js:156:32)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+Error freeing data: Error: TIMEOUT_ON_WRITING_MESSAGE
+    at Timeout._onTimeout (X:\FP-E-coupon\electron-bridge\node_modules\zkteco-js\src\ztcp.js:156:32)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+Error getting attendance records: Error: TIMEOUT_ON_WRITING_MESSAGE
+    at Timeout._onTimeout (X:\FP-E-coupon\electron-bridge\node_modules\zkteco-js\src\ztcp.js:156:32)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+❌ Error: undefined
+Error executing command: Error: TIMEOUT_ON_WRITING_MESSAGE
+    at Timeout._onTimeout (X:\FP-E-coupon\electron-bridge\node_modules\zkteco-js\src\ztcp.js:156:32)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+Error during disconnection: Error: TIMEOUT_ON_WRITING_MESSAGE
+    at Timeout._onTimeout (X:\FP-E-coupon\electron-bridge\node_modules\zkteco-js\src\ztcp.js:156:32)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+
+──────────────────────────────────────────────────
+📡 SSTH-Factory A (192.168.0.152)
+──────────────────────────────────────────────────
+❌ Error: undefined
+
+──────────────────────────────────────────────────
+📡 Haoli (192.168.0.153)
+──────────────────────────────────────────────────
+❌ Error: undefined
+
+──────────────────────────────────────────────────
+📡 PPS (192.168.0.154)
+──────────────────────────────────────────────────
+❌ Error: undefined
+
+📤 Processing SSTH-Entrance...
+   ℹ️ No new records
+
+📤 Processing SSTH-Factory A...
+   ℹ️ No new records
+
+📤 Processing Haoli...
+   ℹ️ No new records
+
+📤 Processing PPS...
+   ℹ️ No new records
+
+════════════════════════════════════════════════════════════
+📊 SYNC SUMMARY
+════════════════════════════════════════════════════════════
+   Total new records found: 0
+   Total inserted/updated:  0
+   Errors:                  0
+════════════════════════════════════════════════════════════
+[Tue 02/10/2026 17:01:50.59] Sync completed. 
+ 
+[Wed 02/11/2026  8:01:10.86] Running auto sync... 
+[dotenv@17.2.3] injecting env (2) from ..\.env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+════════════════════════════════════════════════════════════
+🔄 ATTENDANCE SYNC + AUTO-CREATE EMPLOYEES
+   Time: 11/2/2569 08:01:16
+   Mode: Night shift support (yesterday + today minimum)
+   Safety: 7-day default window
+════════════════════════════════════════════════════════════
+
+📋 Loading existing employees from Supabase...
+   ✅ Found 1000 employees in Supabase
+
+📋 Last run: 10/2/2569 17:01:50
+
+📊 Last sync per device:
+   SSTH-Entrance: 10/2/2569 07:14:30
+   SSTH-Factory A: 21/5/2569 08:02:51
+   Haoli: 10/2/2569 09:02:58
+   PPS: 10/2/2569 11:39:05
+
+──────────────────────────────────────────────────
+📡 SSTH-Entrance (192.168.0.151)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 99611
+   📥 Fetched: 1636 total records
+   📅 Using yesterday: 2026-02-09T17:00:00.000Z
+   ✨ New logs to sync: 0 records
+
+──────────────────────────────────────────────────
+📡 SSTH-Factory A (192.168.0.152)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 30771
+   📥 Fetched: 30771 total records
+   📅 Using yesterday: 2026-02-09T17:00:00.000Z
+   ✨ New logs to sync: 178 records
+   📆 Range: 10/2/2569 → 21/5/2569
+
+──────────────────────────────────────────────────
+📡 Haoli (192.168.0.153)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 14841
+   📥 Fetched: 14841 total records
+   📅 Using yesterday: 2026-02-09T17:00:00.000Z
+   ✨ New logs to sync: 508 records
+   📆 Range: 10/2/2569 → 11/2/2569
+
+──────────────────────────────────────────────────
+📡 PPS (192.168.0.154)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 13931
+   📥 Fetched: 13931 total records
+   📅 Using yesterday: 2026-02-09T17:00:00.000Z
+   ✨ New logs to sync: 318 records
+   📆 Range: 10/2/2569 → 11/2/2569
+
+👤 Auto-creating 156 new employees...
+TCP connection successful
+TCP connection successful
+TCP connection successful
+TCP connection successful
+   ❌ Error creating employees: there is no unique or exclusion constraint matching the ON CONFLICT specification
+
+📤 Processing SSTH-Entrance...
+   ℹ️ No new records
+
+📤 Processing SSTH-Factory A...
+   📤 Uploading 178 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 78 records
+   💾 Updated lastSync: 21/5/2569 08:02:51
+
+📤 Processing Haoli...
+   📤 Uploading 508 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 100 records
+   ✅ Batch 4: 100 records
+   ✅ Batch 5: 100 records
+   ✅ Batch 6: 8 records
+   💾 Updated lastSync: 11/2/2569 08:01:32
+
+📤 Processing PPS...
+   📤 Uploading 318 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 100 records
+   ✅ Batch 4: 18 records
+   💾 Updated lastSync: 11/2/2569 08:02:22
+
+════════════════════════════════════════════════════════════
+📊 SYNC SUMMARY
+════════════════════════════════════════════════════════════
+   Total new records found: 1004
+   Total inserted/updated:  1004
+   Errors:                  0
+════════════════════════════════════════════════════════════
+
+💳 Auto-granting meal credits...
+⚠️ Cannot grant meal credits: fetch failed
+   (Make sure Next.js server is running at localhost:3000)
+[Wed 02/11/2026  8:02:39.82] Sync completed. 
+ 
+[Wed 02/11/2026 10:00:02.44] Running auto sync... 
+[dotenv@17.2.3] injecting env (2) from ..\.env.local -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+════════════════════════════════════════════════════════════
+🔄 ATTENDANCE SYNC + AUTO-CREATE EMPLOYEES
+   Time: 11/2/2569 10:00:04
+   Mode: Night shift support (yesterday + today minimum)
+   Safety: 7-day default window
+════════════════════════════════════════════════════════════
+
+📋 Loading existing employees from Supabase...
+   ✅ Found 1000 employees in Supabase
+
+📋 Last run: 11/2/2569 08:02:34
+
+📊 Last sync per device:
+   SSTH-Entrance: 10/2/2569 07:14:30
+   SSTH-Factory A: 21/5/2569 08:02:51
+   Haoli: 11/2/2569 08:01:32
+   PPS: 11/2/2569 08:02:22
+
+──────────────────────────────────────────────────
+📡 SSTH-Entrance (192.168.0.151)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 99651
+   📥 Fetched: 99651 total records
+   📅 Using yesterday: 2026-02-09T17:00:00.000Z
+   ✨ New logs to sync: 771 records
+   📆 Range: 10/2/2569 → 11/2/2569
+
+──────────────────────────────────────────────────
+📡 SSTH-Factory A (192.168.0.152)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 30772
+   📥 Fetched: 30772 total records
+   📅 Using yesterday: 2026-02-09T17:00:00.000Z
+   ✨ New logs to sync: 179 records
+   📆 Range: 10/2/2569 → 21/5/2569
+
+──────────────────────────────────────────────────
+📡 Haoli (192.168.0.153)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 14864
+   📥 Fetched: 14864 total records
+   📅 Using yesterday: 2026-02-09T17:00:00.000Z
+   ✨ New logs to sync: 531 records
+   📆 Range: 10/2/2569 → 11/2/2569
+
+──────────────────────────────────────────────────
+📡 PPS (192.168.0.154)
+──────────────────────────────────────────────────
+TCP connection successful
+✅ Connected
+   📊 Logs in device: 13949
+   📥 Fetched: 13949 total records
+   📅 Using yesterday: 2026-02-09T17:00:00.000Z
+   ✨ New logs to sync: 336 records
+   📆 Range: 10/2/2569 → 11/2/2569
+
+════════════════════════════════════════════════════════════
+🆕 NEW EMPLOYEE PINs DETECTED: 196
+════════════════════════════════════════════════════════════
+   PINs not found in Supabase:
+   18028, 18065, 18027, 19024, 18077, 18095, 18026, 18078, 18032, 19023
+   18069, 18048, 18100, 18061, 19005, 18014, 18017, 18023, 19027, 18114
+   19019, 18086, 18018, 18096, 18020, 18012, 18068, 18094, 19020, 18011
+   19028, 19016, 18076, 18047, 18035, 18055, 18030, 18013, 18038, 26027
+   18098, 18034, 19004, 40158, 70014, 70015, 70022, 70091, 70043, 70025
+   70062, 70100, 70082, 70047, 70034, 70035, 70001, 70009, 70057, 70049
+   70081, 70027, 70026, 70040, 70005, 70038, 70111, 70108, 70078, 70059
+   70058, 70039, 70077, 70007, 70075, 70076, 70050, 70037, 70008, 70006
+   70045, 70004, 70036, 70046, 40157, 70051, 70048, 70011, 70109, 70044
+   70116, 70112, 70110, 70113, 70118, 70061, 70117, 70085, 70089, 70107
+   70101, 70103, 70102, 70094, 70096, 70115, 70099, 70098, 40162, 40163
+   70063, 70029, 40161, 70104, 70105, 70084, 70087, 40160, 70088, 70083
+   70086, 40151, 70097, 70060, 70002, 70073, 70074, 70064, 70065, 70010
+   70072, 40152, 70079, 70020, 70021, 70055, 70013, 70090, 70070, 70056
+   70052, 70016, 70053, 70032, 70030, 70066, 70019, 70106, 70017, 70023
+   70069, 70054, 70071, 70068, 70012, 70018, 70031, 40150, 40148, 40166
+   40167, 40168, 40169, 40170, 40153, 70092, 70095, 70093, 40154, 70080
+   30347, 30348, 30357, 30351, 30361, 30360, 30355, 30352, 30344, 30362
+   30363, 30364, 30365, 30366, 30367, 30368, 30369, 30346, 50001, 30358
+   30359, 30356, 30370, 30371, 30372, 30373
+
+👤 Fetching names from ZKTeco devices...
+TCP connection successful
+TCP connection successful
+TCP connection successful
+TCP connection successful
+
+   📋 New employees to create:
+      🆔 18028 → Employee 18028 (จากเครื่อง)
+      🆔 18065 → Employee 18065 (จากเครื่อง)
+      🆔 18027 → Employee 18027 (จากเครื่อง)
+      🆔 19024 → Employee 19024 (จากเครื่อง)
+      🆔 18077 → Employee 18077 (จากเครื่อง)
+      🆔 18095 → Employee 18095 (จากเครื่อง)
+      🆔 18026 → Employee 18026 (จากเครื่อง)
+      🆔 18078 → Employee 18078 (จากเครื่อง)
+      🆔 18032 → Employee 18032 (จากเครื่อง)
+      🆔 19023 → Employee 19023 (จากเครื่อง)
+      🆔 18069 → Employee 18069 (จากเครื่อง)
+      🆔 18048 → Employee 18048 (จากเครื่อง)
+      🆔 18100 → Employee 18100 (จากเครื่อง)
+      🆔 18061 → Employee 18061 (จากเครื่อง)
+      🆔 19005 → Employee 19005 (จากเครื่อง)
+      🆔 18014 → Employee 18014 (จากเครื่อง)
+      🆔 18017 → Employee 18017 (จากเครื่อง)
+      🆔 18023 → Employee 18023 (จากเครื่อง)
+      🆔 19027 → Employee 19027 (จากเครื่อง)
+      🆔 18114 → Employee 18114 (จากเครื่อง)
+      🆔 19019 → Employee 19019 (จากเครื่อง)
+      🆔 18086 → Employee 18086 (จากเครื่อง)
+      🆔 18018 → Employee 18018 (จากเครื่อง)
+      🆔 18096 → Employee 18096 (จากเครื่อง)
+      🆔 18020 → Employee 18020 (จากเครื่อง)
+      🆔 18012 → Employee 18012 (จากเครื่อง)
+      🆔 18068 → Employee 18068 (จากเครื่อง)
+      🆔 18094 → Employee 18094 (จากเครื่อง)
+      🆔 19020 → Employee 19020 (จากเครื่อง)
+      🆔 18011 → Employee 18011 (จากเครื่อง)
+      🆔 19028 → Employee 19028 (จากเครื่อง)
+      🆔 19016 → Employee 19016 (จากเครื่อง)
+      🆔 18076 → Employee 18076 (จากเครื่อง)
+      🆔 18047 → Employee 18047 (จากเครื่อง)
+      🆔 18035 → Employee 18035 (จากเครื่อง)
+      🆔 18055 → Employee 18055 (จากเครื่อง)
+      🆔 18030 → Employee 18030 (จากเครื่อง)
+      🆔 18013 → Employee 18013 (จากเครื่อง)
+      🆔 18038 → Employee 18038 (จากเครื่อง)
+      🆔 26027 → Patthira (จากเครื่อง)
+      🆔 18098 → Employee 18098 (จากเครื่อง)
+      🆔 18034 → Employee 18034 (จากเครื่อง)
+      🆔 19004 → Employee 19004 (จากเครื่อง)
+      🆔 40158 → Wanchana (จากเครื่อง)
+      🆔 70014 → ThuReinTun (จากเครื่อง)
+      🆔 70015 → WinZaw (จากเครื่อง)
+      🆔 70022 → TinKoWin (จากเครื่อง)
+      🆔 70091 → ChanMyaeAung (จากเครื่อง)
+      🆔 70043 → NyanLinTun (จากเครื่อง)
+      🆔 70025 → SoeLwin (จากเครื่อง)
+      🆔 70062 → MarLarWin (จากเครื่อง)
+      🆔 70100 → EiThaePo (จากเครื่อง)
+      🆔 70082 → MayZinAung (จากเครื่อง)
+      🆔 70047 → NayMinHtet (จากเครื่อง)
+      🆔 70034 → NanAyeChanKhine (จากเครื่อง)
+      🆔 70035 → TheingTheirShan (จากเครื่อง)
+      🆔 70001 → PhyoWai (จากเครื่อง)
+      🆔 70009 → NyeinYin (จากเครื่อง)
+      🆔 70057 → PyaePyaeWin (จากเครื่อง)
+      🆔 70049 → BoWin (จากเครื่อง)
+      🆔 70081 → ZawZawHlaing (จากเครื่อง)
+      🆔 70027 → AyeThiKhaing (จากเครื่อง)
+      🆔 70026 → AyeAyeKhaing (จากเครื่อง)
+      🆔 70040 → ZawThuHein (จากเครื่อง)
+      🆔 70005 → YaMinNaing (จากเครื่อง)
+      🆔 70038 → NweOo (จากเครื่อง)
+      🆔 70111 → ZawZawMoe (จากเครื่อง)
+      🆔 70108 → YuyuMon (จากเครื่อง)
+      🆔 70078 → ZanDar (จากเครื่อง)
+      🆔 70059 → WinKyaing (จากเครื่อง)
+      🆔 70058 → MaSanSanNwe (จากเครื่อง)
+      🆔 70039 → HninEiHtwe (จากเครื่อง)
+      🆔 70077 → MohMohHlaing (จากเครื่อง)
+      🆔 70007 → ThidaSoe (จากเครื่อง)
+      🆔 70075 → MoeThiriSan (จากเครื่อง)
+      🆔 70076 → ZuZuSanTharNaung (จากเครื่อง)
+      🆔 70050 → SiThu (จากเครื่อง)
+      🆔 70037 → YuYuThin (จากเครื่อง)
+      🆔 70008 → TheinThanSoe (จากเครื่อง)
+      🆔 70006 → SuKyi (จากเครื่อง)
+      🆔 70045 → HninWaiTun (จากเครื่อง)
+      🆔 70004 → LwinMoe (จากเครื่อง)
+      🆔 70036 → PhyoKo (จากเครื่อง)
+      🆔 70046 → PhyoKoko (จากเครื่อง)
+      🆔 40157 → Phonchai (จากเครื่อง)
+      🆔 70051 → ZawWinHlaing (จากเครื่อง)
+      🆔 70048 → WinWinSoe (จากเครื่อง)
+      🆔 70011 → HninYuWin (จากเครื่อง)
+      🆔 70109 → NweNiLin (จากเครื่อง)
+      🆔 70044 → ThetTunNaung (จากเครื่อง)
+      🆔 70116 → SoeMyinHtay (จากเครื่อง)
+      🆔 70112 → YinThu (จากเครื่อง)
+      🆔 70110 → PhyoWaiKwaw (จากเครื่อง)
+      🆔 70113 → ZinMar (จากเครื่อง)
+      🆔 70118 → ThuZarHtwe (จากเครื่อง)
+      🆔 70061 → MyoMinAung (จากเครื่อง)
+      🆔 70117 → NayAungSoe (จากเครื่อง)
+      🆔 70085 → EiEiPhyu (จากเครื่อง)
+      🆔 70089 → TheinZaw (จากเครื่อง)
+      🆔 70107 → MoeMoe (จากเครื่อง)
+      🆔 70101 → EieiPhyu (จากเครื่อง)
+      🆔 70103 → EiPhyoMon (จากเครื่อง)
+      🆔 70102 → SupanHtwar (จากเครื่อง)
+      🆔 70094 → MayThinzarOo (จากเครื่อง)
+      🆔 70096 → NaingMinHtet (จากเครื่อง)
+      🆔 70115 → MinKaOo (จากเครื่อง)
+      🆔 70099 → TinTinPhyo (จากเครื่อง)
+      🆔 70098 → ZinMyintAung (จากเครื่อง)
+      🆔 40162 → Oonpeeya (จากเครื่อง)
+      🆔 40163 → Supanut (จากเครื่อง)
+      🆔 70063 → TheinMinSoe (จากเครื่อง)
+      🆔 70029 → AyeMinHtike (จากเครื่อง)
+      🆔 40161 → Anucha (จากเครื่อง)
+      🆔 70104 → ZawMinHlaing (จากเครื่อง)
+      🆔 70105 → MaungNu (จากเครื่อง)
+      🆔 70084 → PhyuZinWin (จากเครื่อง)
+      🆔 70087 → SoeAung (จากเครื่อง)
+      🆔 40160 → Teerawat (จากเครื่อง)
+      🆔 70088 → MoeNaingAung (จากเครื่อง)
+      🆔 70083 → PhoneMyintNaing (จากเครื่อง)
+      🆔 70086 → NayShineOo (จากเครื่อง)
+      🆔 40151 → Anirut (จากเครื่อง)
+      🆔 70097 → YeHtetZaw (จากเครื่อง)
+      🆔 70060 → MyaHninAye (จากเครื่อง)
+      🆔 70002 → ThidarSoe (จากเครื่อง)
+      🆔 70073 → ZawHtetAung (จากเครื่อง)
+      🆔 70074 → ChitNaingThu (จากเครื่อง)
+      🆔 70064 → ChanNyeinWin (จากเครื่อง)
+      🆔 70065 → WinThiHa (จากเครื่อง)
+      🆔 70010 → ThetThetWin (จากเครื่อง)
+      🆔 70072 → PyaePhyoNaing (จากเครื่อง)
+      🆔 40152 → Aphirak (จากเครื่อง)
+      🆔 70079 → AyeLinPhyo (จากเครื่อง)
+      🆔 70020 → ThanThanSoe (จากเครื่อง)
+      🆔 70021 → ThaeNuNuHlaing (จากเครื่อง)
+      🆔 70055 → ZinPaingTun (จากเครื่อง)
+      🆔 70013 → MoeMoeAye (จากเครื่อง)
+      🆔 70090 → ThanHtike (จากเครื่อง)
+      🆔 70070 → MayThuZaw (จากเครื่อง)
+      🆔 70056 → AungThuHein (จากเครื่อง)
+      🆔 70052 → ChitSanMaung (จากเครื่อง)
+      🆔 70016 → KaungMyatThu (จากเครื่อง)
+      🆔 70053 → YeMyintNaing (จากเครื่อง)
+      🆔 70032 → KyawToe (จากเครื่อง)
+      🆔 70030 → SuThundarLin (จากเครื่อง)
+      🆔 70066 → ShineHtetKyawZin (จากเครื่อง)
+      🆔 70019 → NangYaminShweSin (จากเครื่อง)
+      🆔 70106 → Aye (จากเครื่อง)
+      🆔 70017 → ThireTheinNaing (จากเครื่อง)
+      🆔 70023 → NaingLinAung (จากเครื่อง)
+      🆔 70069 → YadanarAungLin (จากเครื่อง)
+      🆔 70054 → SaiSiThu (จากเครื่อง)
+      🆔 70071 → HeinMinHtet (จากเครื่อง)
+      🆔 70068 → AungPaingHtet (จากเครื่อง)
+      🆔 70012 → AyeLinTun (จากเครื่อง)
+      🆔 70018 → HtooArkarKyaw (จากเครื่อง)
+      🆔 70031 → HeinHtet (จากเครื่อง)
+      🆔 40150 → Pachara (จากเครื่อง)
+      🆔 40148 → Thanakon (จากเครื่อง)
+      🆔 40166 → Seree (จากเครื่อง)
+      🆔 40167 → Anantaya (จากเครื่อง)
+      🆔 40168 → Pattamaporn (จากเครื่อง)
+      🆔 40169 → Wichai (จากเครื่อง)
+      🆔 40170 → Sorawit (จากเครื่อง)
+      🆔 40153 → Latda (จากเครื่อง)
+      🆔 70092 → Kokomaung (จากเครื่อง)
+      🆔 70095 → AkariHtun (จากเครื่อง)
+      🆔 70093 → NaingThin (จากเครื่อง)
+      🆔 40154 → Vimolporn (จากเครื่อง)
+      🆔 70080 → NayHlaingOn (จากเครื่อง)
+      🆔 30347 → Phonnapha (จากเครื่อง)
+      🆔 30348 → Suchada (จากเครื่อง)
+      🆔 30357 → Meechai (จากเครื่อง)
+      🆔 30351 → Kasidech (จากเครื่อง)
+      🆔 30361 → Suphansa (จากเครื่อง)
+      🆔 30360 → Panthira (จากเครื่อง)
+      🆔 30355 → Arreerat (จากเครื่อง)
+      🆔 30352 → Kawisara (จากเครื่อง)
+      🆔 30344 → Urairat (จากเครื่อง)
+      🆔 30362 → Employee 30362 (ชื่อชั่วคราว)
+      🆔 30363 → Netiphum (จากเครื่อง)
+      🆔 30364 → Piyada (จากเครื่อง)
+      🆔 30365 → Sirirot (จากเครื่อง)
+      🆔 30366 → Phaisan (จากเครื่อง)
+      🆔 30367 → Hatthaya (จากเครื่อง)
+      🆔 30368 → Natthakit (จากเครื่อง)
+      🆔 30369 → Darin (จากเครื่อง)
+      🆔 30346 → Soranan (จากเครื่อง)
+      🆔 50001 → Suphatcha (จากเครื่อง)
+      🆔 30358 → Natita (จากเครื่อง)
+      🆔 30359 → Thanawan (จากเครื่อง)
+      🆔 30356 → Phiraphat (จากเครื่อง)
+      🆔 30370 → Suttikan (จากเครื่อง)
+      🆔 30371 → Taweesap (จากเครื่อง)
+      🆔 30372 → Yuwadi (จากเครื่อง)
+      🆔 30373 → Kotsakorn (จากเครื่อง)
+
+   📤 Inserting 196 new employees to Supabase...
+   ❌ Error creating employees: new row violates row-level security policy for table "employees"
+   💡 Hint: Run migration 008_fix_employee_code_unique.sql first!
+════════════════════════════════════════════════════════════
+
+📤 Processing SSTH-Entrance...
+   📤 Uploading 771 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 100 records
+   ✅ Batch 4: 100 records
+   ✅ Batch 5: 100 records
+   ✅ Batch 6: 100 records
+   ✅ Batch 7: 100 records
+   ✅ Batch 8: 71 records
+   💾 Updated lastSync: 11/2/2569 09:32:39
+
+📤 Processing SSTH-Factory A...
+   📤 Uploading 179 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 79 records
+   💾 Updated lastSync: 21/5/2569 08:02:51
+
+📤 Processing Haoli...
+   📤 Uploading 531 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 100 records
+   ✅ Batch 4: 100 records
+   ✅ Batch 5: 100 records
+   ✅ Batch 6: 31 records
+   💾 Updated lastSync: 11/2/2569 08:38:46
+
+📤 Processing PPS...
+   📤 Uploading 336 to Supabase...
+   ✅ Batch 1: 100 records
+   ✅ Batch 2: 100 records
+   ✅ Batch 3: 100 records
+   ✅ Batch 4: 36 records
+   💾 Updated lastSync: 11/2/2569 09:07:18
+
+════════════════════════════════════════════════════════════
+📊 SYNC SUMMARY
+════════════════════════════════════════════════════════════
+   📥 Total new records found: 1817
+   📤 Total inserted/updated:  1817
+   ❌ Errors:                  0
+
+   ⚠️  FAILED TO CREATE 196 NEW EMPLOYEES
+   ────────────────────────────────────────
+   🔴 PIN: 18028 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18065 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18027 (ยังไม่ได้สร้าง)
+   🔴 PIN: 19024 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18077 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18095 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18026 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18078 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18032 (ยังไม่ได้สร้าง)
+   🔴 PIN: 19023 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18069 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18048 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18100 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18061 (ยังไม่ได้สร้าง)
+   🔴 PIN: 19005 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18014 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18017 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18023 (ยังไม่ได้สร้าง)
+   🔴 PIN: 19027 (ยังไม่ได้สร้าง)
+   🔴 PIN: 18114 (ยังไม่ได้สร้าง)
+   ... and 176 more
+   💡 Run migration 008_fix_employee_code_unique.sql to fix!
+   ────────────────────────────────────────
+════════════════════════════════════════════════════════════
+
+💳 Auto-granting meal credits...
+⚠️ Cannot grant meal credits: fetch failed
+   (Make sure Next.js server is running at localhost:3000)
+[Wed 02/11/2026 10:01:11.87] Sync completed. 
+ 

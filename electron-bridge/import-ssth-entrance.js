@@ -29,11 +29,12 @@ async function main() {
 
     console.log(`Valid logs: ${validLogs.length}`);
 
-    // Convert to DB format
+    // Convert to DB format - บันทึกเป็น SCAN ทั้งหมด
     const records = validLogs.map(log => ({
         employee_code: String(log.user_id),
         check_time: new Date(log.record_time).toISOString(),
-        check_type: log.state === 0 ? 'I' : 'O',
+        check_type: 'SCAN',  // ระบบจะคำนวณ IN/OUT ภายหลังตามกะ
+        raw_state: log.state ?? null,  // เก็บค่าดิบจากเครื่อง
         device_ip: '192.168.0.151'
     }));
 

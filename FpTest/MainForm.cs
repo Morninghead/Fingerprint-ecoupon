@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data.OleDb;
 using System.Drawing;
 using System.IO;
 using System.Net.Http;
@@ -45,10 +46,16 @@ namespace FpTest
         private Button btnInit;
         private Button btnLoadTemplates;
         private Button btnLoadFromSupabase;
+        private Button btnLoadFromMDB;
+        private Button btnLoadFromDevice;
         private Button btnEnroll;
         private Button btnStartScan;
         private Button btnStopScan;
         private Button btnSync;
+        
+        // Progress bar
+        private ProgressBar progressBar;
+        private Label lblProgress;
         
         // Sync service
         private ZKTecoSyncService syncService;
@@ -67,10 +74,15 @@ namespace FpTest
         private SupabaseClient supabase;
         private Label lblCreditStatus;
         
-        // Duplicate scan prevention
+        // MDB Templates for manual 1:N matching (bypass FPCacheDB)
+        private Dictionary<int, byte[]> mdbTemplates = new Dictionary<int, byte[]>(); // cacheId -> template bytes
+        
+        // Duplicate scan prevention - ใช้ cacheId + score เป็น key
         private int lastMatchedId = -1;
+        private int scanDebugCount = 0;
+        private int lastMatchScore = -1;
         private DateTime lastMatchTime = DateTime.MinValue;
-        private const int SAME_PERSON_COOLDOWN_SECONDS = 10; // ป้องกัน scan ซ้ำคนเดิมภายใน 10 วินาที
+        private const int SAME_PERSON_COOLDOWN_SECONDS = 60; // ป้องกัน scan ซ้ำคนเดิมภายใน 60 วินาที
         
         public MainForm()
         {
@@ -83,12 +95,12 @@ namespace FpTest
             {
                 supabase = new SupabaseClient(SUPABASE_URL, supabaseKey);
                 
-                // Initialize sync service with ZKTeco devices
+                // Initialize sync service with ZKTeco devices (192.168.0.x subnet)
                 syncService = new ZKTecoSyncService(SUPABASE_URL, supabaseKey);
-                syncService.AddDevice("SSTH-1", "192.168.1.151");
-                syncService.AddDevice("SSTH-2", "192.168.1.152");
-                syncService.AddDevice("Haoli", "192.168.1.153");
-                syncService.AddDevice("PPS", "192.168.1.154");
+                syncService.AddDevice("SSTH-1", "192.168.0.151");
+                syncService.AddDevice("SSTH-2", "192.168.0.152");
+                syncService.AddDevice("Haoli", "192.168.0.153");
+                syncService.AddDevice("PPS", "192.168.0.154");
             }
             
             // Auto-start on form load
@@ -99,19 +111,35 @@ namespace FpTest
         {
             Log("🚀 เริ่มต้นระบบอัตโนมัติ...");
             
-            // Step 1: Auto-connect hardware
-            await Task.Delay(500); // Wait for UI to render
+            // Step 1: Auto-connect hardware (ทำก่อน - ไม่ต้องรอ sync)
+            await Task.Delay(200); // Wait for UI to render
             Log("🔌 กำลังเชื่อมต่อ Scanner...");
             BtnInit_Click(sender, e);
             
-            // Step 2: Auto-load templates (if connected)
+            // Step 2: Sync attendance ใน background (ไม่ block startup)
+            // DISABLED: ปิดการ sync จากเครื่อง ZKTeco ชั่วคราว
+            if (false && syncService != null)
+            {
+                _ = Task.Run(async () => {
+                    try
+                    {
+                        var result = await syncService.SyncAllDevicesAsync(msg => 
+                            this.Invoke((Action)(() => Log(msg))));
+                        if (result.NewRecords > 0)
+                            this.Invoke((Action)(() => Log($"🎉 Sync เสร็จ! +{result.NewRecords} records")));
+                    }
+                    catch { /* devices อาจไม่พร้อม - ไม่เป็นไร */ }
+                });
+            }
+            
+            // Step 3: Auto-load templates (if connected)
             if (btnLoadTemplates.Enabled)
             {
                 await Task.Delay(300);
                 Log("📂 กำลังโหลด Templates...");
                 BtnLoadTemplates_Click(sender, e);
                 
-                // Step 3: Auto-start scanning (always on)
+                // Step 4: Auto-start scanning (always on)
                 await Task.Delay(500);
                 if (btnStartScan.Enabled && templateCount > 0)
                 {
@@ -154,7 +182,7 @@ namespace FpTest
         private void InitializeUI()
         {
             this.Text = "🍽 Cafeteria E-Coupon";
-            this.Size = new Size(900, 780);
+            this.Size = new Size(920, 890);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = lightColor;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
@@ -172,15 +200,15 @@ namespace FpTest
             };
             pnlHeader.Controls.Add(lblTitle);
             
-            // Status Panel
-            pnlStatus = new Panel { Location = new Point(20, 100), Size = new Size(420, 120), BackColor = Color.White };
+            // Status Panel - ขยาย height เพื่อใส่ปุ่มครบ 3 แถว
+            pnlStatus = new Panel { Location = new Point(20, 100), Size = new Size(420, 230), BackColor = Color.White };
             
             lblStatus = new Label
             {
                 Text = "⚪ ยังไม่ได้เชื่อมต่อ Scanner",
                 Font = new Font("Segoe UI", 14),
                 ForeColor = darkColor,
-                Location = new Point(20, 20),
+                Location = new Point(20, 15),
                 AutoSize = true
             };
             pnlStatus.Controls.Add(lblStatus);
@@ -190,30 +218,66 @@ namespace FpTest
                 Text = "📁 Templates: 0",
                 Font = new Font("Segoe UI", 11),
                 ForeColor = Color.Gray,
-                Location = new Point(20, 55),
+                Location = new Point(20, 45),
                 AutoSize = true
             };
             pnlStatus.Controls.Add(lblTemplateCount);
             
-            btnInit = CreateButton("🔌 เชื่อมต่อ Scanner", 20, 85, primaryColor);
+            // === แถว 1: Connection + Load ===
+            btnInit = CreateButton("🔌 Scanner", 20, 75, primaryColor);
+            btnInit.Width = 95;
             btnInit.Click += BtnInit_Click;
             pnlStatus.Controls.Add(btnInit);
             
-            btnLoadTemplates = CreateButton("📂 โหลด Templates", 160, 85, primaryColor);
+            btnLoadTemplates = CreateButton("📂 Cache", 120, 75, primaryColor);
+            btnLoadTemplates.Width = 90;
             btnLoadTemplates.Click += BtnLoadTemplates_Click;
             btnLoadTemplates.Enabled = false;
             pnlStatus.Controls.Add(btnLoadTemplates);
             
-            btnLoadFromSupabase = CreateButton("🌐 โหลดจาก Supabase", 300, 85, Color.FromArgb(142, 68, 173));
+            btnLoadFromSupabase = CreateButton("🌐 Supabase", 215, 75, Color.FromArgb(52, 152, 219));
+            btnLoadFromSupabase.Width = 95;
             btnLoadFromSupabase.Click += BtnLoadFromSupabase_Click;
             btnLoadFromSupabase.Enabled = false;
-            btnLoadFromSupabase.Width = 170;
             pnlStatus.Controls.Add(btnLoadFromSupabase);
             
-            btnSync = CreateButton("🔄 Sync Attendance", 20, 120, Color.FromArgb(22, 160, 133));
+            btnLoadFromMDB = CreateButton("📁 MDB", 315, 75, Color.FromArgb(142, 68, 173));
+            btnLoadFromMDB.Width = 85;
+            btnLoadFromMDB.Click += BtnLoadFromMDB_Click;
+            btnLoadFromMDB.Enabled = false;
+            pnlStatus.Controls.Add(btnLoadFromMDB);
+            
+            // === แถว 2: Sync + ZKTime ===
+            btnSync = CreateButton("🔄 Sync Attendance", 20, 110, Color.FromArgb(22, 160, 133));
+            btnSync.Width = 145;
             btnSync.Click += BtnSync_Click;
-            btnSync.Width = 160;
             pnlStatus.Controls.Add(btnSync);
+            
+            btnLoadFromDevice = CreateButton("⚡ โหลด ZKTime", 170, 110, Color.FromArgb(41, 128, 185));
+            btnLoadFromDevice.Width = 130;
+            btnLoadFromDevice.Click += BtnLoadZKTimeMDB_Click;
+            pnlStatus.Controls.Add(btnLoadFromDevice);
+            
+            // === แถว 3: Progress bar ===
+            progressBar = new ProgressBar
+            {
+                Location = new Point(20, 150),
+                Size = new Size(280, 25),
+                Style = ProgressBarStyle.Continuous,
+                Visible = false
+            };
+            pnlStatus.Controls.Add(progressBar);
+            
+            lblProgress = new Label
+            {
+                Location = new Point(310, 153),
+                Size = new Size(100, 20),
+                Text = "",
+                ForeColor = primaryColor,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Visible = false
+            };
+            pnlStatus.Controls.Add(lblProgress);
             
             // Main Panel (fingerprint image)
             pnlMain = new Panel { Location = new Point(460, 100), Size = new Size(400, 400), BackColor = Color.White };
@@ -226,8 +290,8 @@ namespace FpTest
             };
             pnlMain.Controls.Add(picFinger);
             
-            // Result Panel
-            pnlResult = new Panel { Location = new Point(20, 230), Size = new Size(420, 200), BackColor = Color.White };
+            // Result Panel - ปรับตำแหน่งลงตาม pnlStatus ที่สูงขึ้น
+            pnlResult = new Panel { Location = new Point(20, 340), Size = new Size(420, 200), BackColor = Color.White };
             
             lblResultTitle = new Label
             {
@@ -267,8 +331,8 @@ namespace FpTest
             btnEnroll.Enabled = false;
             pnlResult.Controls.Add(btnEnroll);
             
-            // Log Panel
-            pnlLog = new Panel { Location = new Point(20, 440), Size = new Size(840, 280), BackColor = Color.White };
+            // Log Panel - ปรับตำแหน่งให้เหมาะกับ layout ใหม่
+            pnlLog = new Panel { Location = new Point(20, 550), Size = new Size(860, 250), BackColor = Color.White };
             
             var lblLogTitle = new Label
             {
@@ -374,10 +438,12 @@ namespace FpTest
                     btnInit.Enabled = false;
                     btnLoadTemplates.Enabled = true;
                     btnLoadFromSupabase.Enabled = true;
+                    btnLoadFromMDB.Enabled = true;
                     btnEnroll.Enabled = true;
                     btnStartScan.Enabled = true;
                     
                     Log($"✅ เชื่อมต่อสำเร็จ - SN: {sn}");
+                    Log($"   FPCacheDB Handle: {fpcHandle} ({(fpcHandle > 0 ? "OK" : "❌ FAILED!")})");
                 }
                 else
                 {
@@ -545,10 +611,42 @@ namespace FpTest
             }
         }
         
+        private void BtnLoadFromMDB_Click(object sender, EventArgs e)
+        {
+            btnLoadFromSupabase.Enabled = false;
+            btnLoadFromSupabase.Text = "⏳ กำลังโหลด...";
+            
+            try
+            {
+                templates.Clear();
+                employees.Clear();
+                templateCount = 0;
+                
+                LoadFromMDB();
+                
+                lblTemplateCount.Text = $"📁 Templates: {templateCount} ({employees.Count} คน)";
+                btnStartScan.Enabled = true;
+                btnLoadFromSupabase.Text = "✅ โหลดแล้ว";
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ {ex.Message}");
+                btnLoadFromSupabase.Enabled = true;
+                btnLoadFromSupabase.Text = "📁 โหลดจาก MDB";
+            }
+        }
+        
         private async Task LoadTemplatesFromCache()
         {
             try
             {
+                // Check if FPCacheDB is valid
+                if (fpcHandle <= 0)
+                {
+                    Log($"⚠️ FPCacheDB ไม่พร้อม (handle={fpcHandle}) - กรุณาเชื่อมต่อ Scanner ก่อน");
+                    return;
+                }
+                
                 string json = File.ReadAllText(cacheFilePath);
                 var cache = JObject.Parse(json);
                 var templateArray = cache["templates"] as JArray;
@@ -557,6 +655,7 @@ namespace FpTest
                 if (templateArray == null || templateArray.Count == 0) return;
                 
                 Log($"📂 พบ {templateArray.Count} templates ใน cache file");
+                Log($"   FPCacheDB Handle: {fpcHandle}");
                 
                 int loaded = 0;
                 int cacheAdded = 0;
@@ -570,15 +669,16 @@ namespace FpTest
                         string base64Template = t["template_data"].ToString();
                         
                         // Add to FPCacheDB for 1:N identification
-                        // Use regular version for V9 templates
                         int cacheId = mdbUserId * 10 + fingerId;
                         int result = zkfp.AddRegTemplateStrToFPCacheDB(fpcHandle, cacheId, base64Template);
                         
-                        if (loaded < 3) // Log first 3
-                            Log($"  📁 #{loaded+1}: cacheId={cacheId}, size={base64Template.Length}, result={result}");
+                        if (loaded < 5) // Log first 5
+                            Log($"  📁 #{loaded+1}: cacheId={cacheId}, result={result} {(result == 0 ? "✅" : "❌")}");
                         
                         if (result == 0)
                             cacheAdded++;
+                        else if (loaded < 10)
+                            Log($"  ⚠️ Failed to add template: result={result}");
                         
                         // Get employee name from template data or employees object
                         string empName = t["employee_name"]?.ToString() ?? "";
@@ -694,6 +794,507 @@ namespace FpTest
             }
         }
         
+        /// <summary>
+        /// โหลด templates จาก MDB file โดยตรง (ไม่ผ่าน Supabase)
+        /// </summary>
+        private void LoadFromMDB(string customPath = null)
+        {
+            // ลอง sync file ก่อน ถ้าไม่มีก็ใช้ ATT2000.MDB เดิม
+            string appDir = AppDomain.CurrentDomain.BaseDirectory;
+            string syncPath = Path.Combine(appDir, "FpTest_Sync.mdb");
+            string originalPath = @"X:\FP-E-coupon\Thai01\ATT2000.MDB";
+            
+            string mdbPath = customPath ?? (File.Exists(syncPath) ? syncPath : originalPath);
+            
+            if (!File.Exists(mdbPath))
+            {
+                Log($"❌ ไม่พบไฟล์ MDB: {mdbPath}");
+                return;
+            }
+            
+            Log($"📂 กำลังโหลดจาก MDB: {mdbPath}");
+            
+            try
+            {
+                string connStr = $@"Provider=Microsoft.Jet.OLEDB.4.0;Data Source={mdbPath};";
+                
+                using (var conn = new OleDbConnection(connStr))
+                {
+                    conn.Open();
+                    Log($"✅ เชื่อมต่อ MDB สำเร็จ");
+                    
+                    // Step 1: Load employee names AND Badgenumber from USERINFO
+                    var userNames = new Dictionary<int, string>();
+                    var userBadges = new Dictionary<int, string>(); // USERID -> Badgenumber (real employee code)
+                    try
+                    {
+                        string userSql = "SELECT USERID, Name, Badgenumber FROM USERINFO";
+                        using (var userCmd = new OleDbCommand(userSql, conn))
+                        using (var userReader = userCmd.ExecuteReader())
+                        {
+                            while (userReader.Read())
+                            {
+                                int uid = Convert.ToInt32(userReader["USERID"]);
+                                string name = userReader["Name"]?.ToString() ?? "";
+                                string badge = userReader["Badgenumber"]?.ToString() ?? "";
+                                if (!string.IsNullOrEmpty(name))
+                                    userNames[uid] = name;
+                                if (!string.IsNullOrEmpty(badge))
+                                    userBadges[uid] = badge;
+                            }
+                        }
+                        Log($"📋 โหลดชื่อพนักงาน: {userNames.Count} คน, Badges: {userBadges.Count}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"⚠️ ไม่สามารถโหลด USERINFO: {ex.Message}");
+                    }
+                    
+                    // Step 2: Query TEMPLATE table
+                    string sql = "SELECT USERID, FINGERID, TEMPLATE4, TEMPLATE FROM TEMPLATE";
+                    using (var cmd = new OleDbCommand(sql, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        int loaded = 0;
+                        int skipped = 0;
+                        int cacheAdded = 0;
+                        
+                        while (reader.Read())
+                        {
+                            int userId = Convert.ToInt32(reader["USERID"]);
+                            int fingerId = Convert.ToInt32(reader["FINGERID"]);
+                            
+                            // Try TEMPLATE4 first (V10 format)
+                            byte[] templateData = null;
+                            try { templateData = reader["TEMPLATE4"] as byte[]; } catch { }
+                            
+                            // Fallback to TEMPLATE
+                            if (templateData == null || templateData.Length < 100)
+                            {
+                                try { templateData = reader["TEMPLATE"] as byte[]; } catch { }
+                            }
+                            
+                            if (templateData == null || templateData.Length < 100)
+                            {
+                                skipped++;
+                                continue;
+                            }
+                            
+                            int cacheId = userId * 10 + fingerId;
+                            
+                            // Store in memory
+                            mdbTemplates[cacheId] = templateData;
+                            
+                            // ⭐ FIX: Also add to FPCacheDB for 1:N matching!
+                            if (fpcHandle > 0)
+                            {
+                                string base64Template = Convert.ToBase64String(templateData);
+                                int result = zkfp.AddRegTemplateStrToFPCacheDB(fpcHandle, cacheId, base64Template);
+                                if (result == 0) cacheAdded++;
+                            }
+                            
+                            if (loaded < 5)
+                            {
+                                Log($"  📁 #{loaded+1}: userId={userId}, finger={fingerId}, size={templateData.Length}");
+                            }
+                            
+                            loaded++;
+                            
+                            // Track employee with name AND Badgenumber from USERINFO
+                            if (!employees.ContainsKey(userId))
+                            {
+                                string empName = userNames.ContainsKey(userId) ? userNames[userId] : $"User {userId}";
+                                // ⭐ FIX: Use Badgenumber as EmployeeCode (matches Supabase employee_code)
+                                string empCode = userBadges.ContainsKey(userId) ? userBadges[userId] : userId.ToString();
+                                employees[userId] = new EmployeeInfo
+                                {
+                                    MdbUserId = userId,
+                                    EmployeeCode = empCode,
+                                    Name = empName
+                                };
+                            }
+                            employees[userId].FingerCount++;
+                        }
+                        
+                        Log($"📊 Skipped: {skipped} (no data)");
+                        Log($"✅ FPCache: {cacheAdded}/{loaded} templates เพิ่มสำเร็จ");
+                        templateCount = loaded;
+                        Log($"✅ MDB: {loaded} templates ({employees.Count} คน)");
+                        
+                        lblTemplateCount.Text = $"Templates: {templateCount} ({employees.Count} คน)";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ MDB Error: {ex.Message}");
+                
+                if (ex.Message.Contains("Jet"))
+                {
+                    Log($"⚠️ ต้องติดตั้ง Microsoft Access Database Engine (32-bit)");
+                }
+            }
+        }
+        /// <summary>
+        /// โหลด templates จาก ZKTime MDB โดยตรง (เร็วมาก!)
+        /// ZKTime sync ข้อมูลไว้แล้ว - เราแค่อ่าน!
+        /// </summary>
+        private async void BtnLoadZKTimeMDB_Click(object sender, EventArgs e)
+        {
+            btnLoadFromDevice.Enabled = false;
+            btnLoadFromDevice.Text = "⏳ โหลด...";
+            btnLoadFromDevice.BackColor = Color.FromArgb(149, 165, 166);
+            
+            try
+            {
+                string zkTimeMDB = @"X:\FP-E-coupon\Thai01\ATT2000.MDB";
+                string appDir = AppDomain.CurrentDomain.BaseDirectory;
+                string localMDB = Path.Combine(appDir, "ATT2000.MDB");
+                
+                // Copy จาก ZKTime มาไว้ folder FpTest
+                if (File.Exists(zkTimeMDB))
+                {
+                    Log("📋 Copy ATT2000.MDB มา folder FpTest...");
+                    File.Copy(zkTimeMDB, localMDB, true);
+                    Log($"✅ Copy สำเร็จ: {localMDB}");
+                }
+                
+                Log("⚡ โหลดจาก MDB...");
+                
+                templates.Clear();
+                employees.Clear();
+                mdbTemplates.Clear();
+                templateCount = 0;
+                
+                LoadFromMDB(localMDB);
+                
+                lblTemplateCount.Text = $"📁 Templates: {templateCount} ({employees.Count} คน)";
+                btnStartScan.Enabled = true;
+                
+                Log($"✅ โหลดเสร็จ: {templateCount} templates ({employees.Count} คน)");
+                
+                // อ่าน CHECKINOUT วันนี้และให้สิทธิ์อาหาร
+                await LoadTodayAttendanceAndGrantCredits(localMDB);
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ Error: {ex.Message}");
+            }
+            finally
+            {
+                btnLoadFromDevice.Enabled = true;
+                btnLoadFromDevice.Text = "⚡ โหลด ZKTime";
+                btnLoadFromDevice.BackColor = Color.FromArgb(41, 128, 185);
+            }
+        }
+        
+        /// <summary>
+        /// อ่าน CHECKINOUT วันนี้จาก MDB และให้สิทธิ์อาหาร
+        /// </summary>
+        private async Task LoadTodayAttendanceAndGrantCredits(string mdbPath)
+        {
+            try
+            {
+                string connStr = $@"Provider=Microsoft.Jet.OLEDB.4.0;Data Source={mdbPath};";
+                var todayAttendance = new HashSet<int>(); // USERID ที่สแกนวันนี้
+                var userIds = new List<string>();
+                
+                using (var conn = new OleDbConnection(connStr))
+                {
+                    conn.Open();
+                    
+                    // อ่าน CHECKINOUT วันนี้ (ไม่สน IN/OUT)
+                    var today = DateTime.Today;
+                    string sql = $"SELECT USERID, CHECKTIME FROM CHECKINOUT WHERE CHECKTIME >= #{today:MM/dd/yyyy}#";
+                    
+                    using (var cmd = new OleDbCommand(sql, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            int userId = Convert.ToInt32(reader["USERID"]);
+                            todayAttendance.Add(userId);
+                        }
+                    }
+                    
+                    // Get Badgenumber (PIN) จาก USERINFO
+                    if (todayAttendance.Count > 0)
+                    {
+                        var userIdList = string.Join(",", todayAttendance);
+                        sql = $"SELECT USERID, Badgenumber, Name FROM USERINFO WHERE USERID IN ({userIdList})";
+                        
+                        using (var cmd = new OleDbCommand(sql, conn))
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                string badgeNumber = reader["Badgenumber"]?.ToString();
+                                if (!string.IsNullOrEmpty(badgeNumber))
+                                {
+                                    userIds.Add(badgeNumber);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Log($"📊 วันนี้มีคนสแกน: {todayAttendance.Count} คน (PIN: {userIds.Count} คน)");
+                
+                if (userIds.Count > 0)
+                {
+                    // Sync ไป Supabase และให้สิทธิ์
+                    Log("💳 กำลังให้สิทธิ์อาหารวันนี้...");
+                    
+                    await Task.Run(async () =>
+                    {
+                        foreach (var pin in userIds)
+                        {
+                            // บันทึก attendance ไป Supabase
+                            await SaveAttendanceToSupabase(pin, DateTime.Now);
+                        }
+                    });
+                    
+                    // เรียก API ให้สิทธิ์
+                    await GrantTodayCredits();
+                }
+                else
+                {
+                    Log("⚠️ ไม่มีข้อมูลสแกนวันนี้ใน MDB - ลอง Sync ZKTime ก่อน");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"⚠️ อ่าน attendance error: {ex.Message}");
+            }
+        }
+        
+        private async Task SaveAttendanceToSupabase(string pin, DateTime checkTime)
+        {
+            try
+            {
+                if (supabase == null) return;
+                
+                using (var client = new HttpClient())
+                {
+                    client.Timeout = TimeSpan.FromSeconds(5);
+                    client.DefaultRequestHeaders.Add("apikey", supabaseKey);
+                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
+                    client.DefaultRequestHeaders.Add("Prefer", "resolution=ignore-duplicates,return=minimal");
+                    
+                    var attendance = new
+                    {
+                        employee_code = pin,
+                        check_time = checkTime.ToString("yyyy-MM-ddTHH:mm:ss+07:00"),
+                        device_ip = "MDB"
+                    };
+                    
+                    var json = Newtonsoft.Json.JsonConvert.SerializeObject(attendance);
+                    var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+                    
+                    await client.PostAsync($"{SUPABASE_URL}/rest/v1/attendance", content);
+                }
+            }
+            catch { }
+        }
+        
+        private async Task GrantTodayCredits()
+        {
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    client.Timeout = TimeSpan.FromSeconds(30);
+                    var today = DateTime.Today.ToString("yyyy-MM-dd");
+                    
+                    var requestBody = new { date = today, grantOT = false };
+                    var json = Newtonsoft.Json.JsonConvert.SerializeObject(requestBody);
+                    var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+                    
+                    var response = await client.PostAsync("http://localhost:3000/api/auto-grant-credits", content);
+                    
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var result = await response.Content.ReadAsStringAsync();
+                        var data = JObject.Parse(result);
+                        var lunchGranted = data["lunchGranted"]?.Value<int>() ?? 0;
+                        
+                        this.Invoke((Action)(() => {
+                            Log($"✅ ให้สิทธิ์อาหาร: {lunchGranted} คน");
+                        }));
+                    }
+                    else
+                    {
+                        this.Invoke((Action)(() => {
+                            Log($"⚠️ API ไม่ตอบ - ต้องรัน `npm run dev` ก่อน");
+                        }));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Invoke((Action)(() => {
+                    Log($"⚠️ API Error: {ex.Message}");
+                }));
+            }
+        }
+        
+        private bool SyncDevicesToMDB()
+        {
+            var service = new ZKTecoToMDBService();
+            
+            var devices = new List<DeviceInfo>
+            {
+                new DeviceInfo { Name = "SSTH-1", IpAddress = "192.168.0.151" },
+                new DeviceInfo { Name = "SSTH-2", IpAddress = "192.168.0.152" },
+                new DeviceInfo { Name = "SSTH-3", IpAddress = "192.168.0.153" },
+                new DeviceInfo { Name = "SSTH-4", IpAddress = "192.168.0.154" }
+            };
+            
+            // สร้างไฟล์ใหม่ใน folder เดียวกับ FpTest.exe
+            string appDir = AppDomain.CurrentDomain.BaseDirectory;
+            string mdbPath = Path.Combine(appDir, "FpTest_Sync.mdb");
+            
+            return service.SyncDevicesToMDB(
+                devices, 
+                mdbPath,
+                msg => this.Invoke((Action)(() => Log(msg)))
+            );
+        }
+        
+        private void LoadTemplatesFromDevice()
+        {
+            var templateService = new ZKTecoTemplateService();
+            
+            // รายชื่อเครื่อง ZKTeco ทั้งหมด (เหมือนกับใน sync)
+            var devices = new List<DeviceInfo>
+            {
+                new DeviceInfo { Name = "SSTH-1", IpAddress = "192.168.0.151" },
+                new DeviceInfo { Name = "SSTH-2", IpAddress = "192.168.0.152" },
+                new DeviceInfo { Name = "SSTH-3", IpAddress = "192.168.0.153" },
+                new DeviceInfo { Name = "SSTH-4", IpAddress = "192.168.0.154" }
+            };
+            
+            this.Invoke((Action)(() => {
+                Log($"📡 กำลังดึง templates จาก {devices.Count} เครื่อง...");
+                progressBar.Maximum = devices.Count + 2; // devices + merge + save
+                progressBar.Value = 0;
+                lblProgress.Text = "0/4 เครื่อง...";
+            }));
+            
+            try
+            {
+                this.Invoke((Action)(() => {
+                    templates.Clear();
+                    employees.Clear();
+                    templateCount = 0;
+                }));
+                
+                // ดึง templates จากทุกเครื่องพร้อมกัน (parallel)
+                var deviceTemplates = templateService.GetAllTemplatesFromDevices(
+                    devices, 
+                    msg => this.Invoke((Action)(() => Log(msg))),
+                    (completed, total, deviceName) => this.Invoke((Action)(() => {
+                        progressBar.Value = completed;
+                        lblProgress.Text = $"✅ {completed}/{total} เสร็จ";
+                    }))
+                );
+                
+                this.Invoke((Action)(() => {
+                    progressBar.Value = devices.Count;
+                    lblProgress.Text = "รวม templates...";
+                    Log($"📊 พบ {deviceTemplates.Count} templates รวมจากทุกเครื่อง");
+                }));
+                
+                int loaded = 0;
+                int cacheAdded = 0;
+                var templateList = new List<object>(); // For saving to cache
+                
+                foreach (var t in deviceTemplates)
+                {
+                    // Add to FPCacheDB (ต้องทำบน UI thread เพราะ zkfp เป็น COM)
+                    int userId = int.TryParse(t.UserId, out int uid) ? uid : 0;
+                    int cacheId = userId * 10 + t.FingerId;
+                    
+                    int result = 0;
+                    this.Invoke((Action)(() => {
+                        result = zkfp.AddRegTemplateStrToFPCacheDB(fpcHandle, cacheId, t.TemplateData);
+                    }));
+                    
+                    if (loaded < 5)
+                    {
+                        int l = loaded;
+                        this.Invoke((Action)(() => Log($"  📁 #{l+1}: userId={t.UserId}, finger={t.FingerId}, size={t.TemplateLength}, result={result}")));
+                    }
+                    
+                    if (result == 0) cacheAdded++;
+                    loaded++;
+                    
+                    // Track employee
+                    int uid2 = userId;
+                    string userName = t.UserName ?? $"User {userId}";
+                    this.Invoke((Action)(() => {
+                        if (!employees.ContainsKey(uid2))
+                        {
+                            employees[uid2] = new EmployeeInfo
+                            {
+                                MdbUserId = uid2,
+                                Name = userName
+                            };
+                        }
+                        employees[uid2].FingerCount++;
+                    }));
+                    
+                    // Collect for saving to cache
+                    templateList.Add(new { 
+                        mdb_user_id = userId, 
+                        finger_id = t.FingerId, 
+                        template_data = t.TemplateData,
+                        employee_name = t.UserName ?? ""
+                    });
+                }
+                
+                // Save to cache file
+                this.Invoke((Action)(() => {
+                    progressBar.Value = progressBar.Maximum - 1;
+                    lblProgress.Text = "บันทึก cache...";
+                    Log("💾 กำลังบันทึก cache...");
+                }));
+                try
+                {
+                    var cache = new JObject
+                    {
+                        ["templates"] = JArray.FromObject(templateList),
+                        ["source"] = "all_devices",
+                        ["device_count"] = devices.Count,
+                        ["timestamp"] = DateTime.Now.ToString("o")
+                    };
+                    File.WriteAllText(cacheFilePath, cache.ToString());
+                    this.Invoke((Action)(() => {
+                        progressBar.Value = progressBar.Maximum;
+                        lblProgress.Text = "เสร็จสิ้น!";
+                        Log($"💾 บันทึก cache สำเร็จ: {templateList.Count} templates");
+                    }));
+                }
+                catch (Exception saveEx)
+                {
+                    this.Invoke((Action)(() => Log($"⚠️ บันทึก cache ล้มเหลว: {saveEx.Message}")));
+                }
+                
+                int finalLoaded = loaded;
+                int finalCacheAdded = cacheAdded;
+                this.Invoke((Action)(() => {
+                    templateCount = finalLoaded;
+                    Log($"✅ Device: {finalCacheAdded}/{finalLoaded} templates เพิ่มสำเร็จ ({employees.Count} คน)");
+                    lblTemplateCount.Text = $"Templates: {templateCount} ({employees.Count} คน)";
+                    btnStartScan.Enabled = true;
+                }));
+            }
+            catch (Exception ex)
+            {
+                this.Invoke((Action)(() => Log($"❌ Error: {ex.Message}")));
+            }
+        }
+        
         #endregion
         
         #region Scanning
@@ -761,10 +1362,16 @@ namespace FpTest
                 byte[] capBytes = capturedTemplate as byte[];
                 if (capBytes == null || capBytes.Length == 0) return;
                 
+                // DEBUG: Log template info (first time only)
+                scanDebugCount++;
+                if (scanDebugCount == 1)
+                {
+                    var header = BitConverter.ToString(capBytes, 0, Math.Min(10, capBytes.Length)).Replace("-", "");
+                    Log($"🔍 Captured: {capBytes.Length} bytes, Header: {header}");
+                }
+                
                 // Skip if template too small (no finger detected)
                 if (capBytes.Length < 100) return;
-                
-                Log($"📷 จับภาพได้! Template size: {capBytes.Length}");
                 
                 // Display fingerprint image
                 try
@@ -819,33 +1426,58 @@ namespace FpTest
                 // Use 1:N identification with FPCache (reuse capturedTemplate from above)
                 if (capturedTemplate == null) 
                 {
-                    Log($"⚠️ GetTemplate() returned null");
-                    return;
+                    return; // ไม่มี template - skip เงียบๆ
                 }
-                
-                Log($"🔍 กำลังค้นหาใน {templateCount} templates ด้วย 1:N cache...");
                 
                 object score = 0;
                 object processedNum = 0;
                 
+                // Templates were added as strings, so we need to convert captured template to string first
+                byte[] templateBytes = capturedTemplate as byte[];
+                if (templateBytes == null || templateBytes.Length == 0) return;
+                
+                // Debug: log captured template header (first scan only)
+                if (lastMatchedId == 0)
+                {
+                    var header = BitConverter.ToString(templateBytes, 0, Math.Min(10, templateBytes.Length)).Replace("-", "");
+                    Log($"🔍 Captured: {templateBytes.Length} bytes, Header: {header}");
+                }
+                
+                // Convert captured template to base64 string
+                string templateStr = Convert.ToBase64String(templateBytes);
+                
+                // Try identification with binary first (should work with string-added templates)
                 int cacheId = zkfp.IdentificationInFPCacheDB(fpcHandle, capturedTemplate, ref score, ref processedNum);
                 
-                Log($"🔍 ผลลัพธ์: cacheId={cacheId}, score={score}, processed={processedNum}");
+                // Debug: show processedNum to verify cache is used
+                int processed = Convert.ToInt32(processedNum);
+                if (processed == 0 && lastMatchedId == 0)
+                {
+                    Log($"⚠️ processedNum=0, fpcHandle={fpcHandle}");
+                }
                 
+                // ถ้าพบ match
                 if (cacheId > 0 && Convert.ToInt32(score) > 30)
                 {
                     int mdbUserId = cacheId / 10;
+                    int currentScore = Convert.ToInt32(score);
                     
-                    // Check if same person scanned within cooldown period
+                    // ถ้าคนเดิม + score เหมือนเดิม = SDK buffer ยังไม่ clear (นิ้วไม่ได้อยู่แล้ว)
+                    // หรือถ้าคนเดิมภายใน cooldown → skip เงียบๆ
                     if (mdbUserId == lastMatchedId && 
-                        (DateTime.Now - lastMatchTime).TotalSeconds < SAME_PERSON_COOLDOWN_SECONDS)
+                        (currentScore == lastMatchScore || 
+                         (DateTime.Now - lastMatchTime).TotalSeconds < SAME_PERSON_COOLDOWN_SECONDS))
                     {
-                        Log($"⏳ รอสักครู่... (คนเดิมภายใน {SAME_PERSON_COOLDOWN_SECONDS} วินาที)");
-                        return; // Skip processing
+                        return; // Silent skip - SDK buffer หรือนิ้วเดิมค้างอยู่
                     }
+                    
+                    // คนใหม่ หรือ พ้น cooldown แล้ว
+                    Log($"📷 Template size: {(capturedTemplate as byte[])?.Length ?? 0}");
+                    Log($"🔍 ผลลัพธ์: cacheId={cacheId}, score={score}");
                     
                     // Update last matched info
                     lastMatchedId = mdbUserId;
+                    lastMatchScore = currentScore;
                     lastMatchTime = DateTime.Now;
                     
                     ProcessMatchResult(cacheId, Convert.ToInt32(score));
@@ -866,7 +1498,7 @@ namespace FpTest
                     
                     // Pause scanning for 3 seconds (prevent rapid re-scans)
                     scanTimer.Stop();
-                    Task.Delay(3000).ContinueWith(_ => {
+                    Task.Delay(1000).ContinueWith(_ => {
                         if (isScanning)
                         {
                             this.Invoke((Action)(() => {
@@ -892,30 +1524,39 @@ namespace FpTest
             {
                 var emp = employees[mdbUserId];
                 
+                // Use mdbUserId as fallback if EmployeeCode is empty
+                string empCode = !string.IsNullOrEmpty(emp.EmployeeCode) ? emp.EmployeeCode : mdbUserId.ToString();
+                
                 lblResultTitle.Text = "✅ ยืนยันตัวตนสำเร็จ!";
                 lblResultTitle.ForeColor = successColor;
-                lblEmployeeCode.Text = $"รหัส / PIN: {emp.EmployeeCode}";
+                lblEmployeeCode.Text = $"รหัส / PIN: {empCode}";
                 lblEmployeeName.Text = $"ชื่อ / Name: {emp.Name}";
                 lblFingerInfo.Text = "";
                 lblMatchScore.Text = "";
                 lblCreditStatus.Text = "⏳ กำลังโหลด credit...";
                 
-                Log($"✅ พบ: {emp.EmployeeCode} - {emp.Name}");
+                Log($"✅ พบ: {empCode} - {emp.Name}");
                 
                 // Fetch credit from Supabase async
-                FetchCreditAsync(emp.EmployeeCode);
+                FetchCreditAsync(empCode);
             }
             else
             {
-                lblResultTitle.Text = "⚠️ ไม่พบข้อมูลพนักงาน";
-                lblResultTitle.ForeColor = Color.Orange;
-                lblEmployeeCode.Text = $"ID: {mdbUserId}";
+                // Try to use mdbUserId directly as employee code
+                string empCode = mdbUserId.ToString();
+                
+                lblResultTitle.Text = "✅ ยืนยันตัวตน!";
+                lblResultTitle.ForeColor = successColor;
+                lblEmployeeCode.Text = $"รหัส / PIN: {empCode}";
                 lblEmployeeName.Text = "";
                 lblFingerInfo.Text = "";
                 lblMatchScore.Text = "";
-                lblCreditStatus.Text = "❌ ไม่มีข้อมูล / No Data";
+                lblCreditStatus.Text = "⏳ กำลังโหลด credit...";
                 
-                Log($"⚠️ ID={mdbUserId} ไม่มีใน employee list");
+                Log($"✅ พบ: {empCode} (จาก cache)");
+                
+                // Fetch credit using mdbUserId as employee code
+                FetchCreditAsync(empCode);
             }
         }
         
@@ -930,28 +1571,41 @@ namespace FpTest
                 {
                     lblCreditStatus.Text = "⚠️ Supabase ไม่ได้เชื่อมต่อ";
                     lblCreditStatus.ForeColor = Color.Orange;
-                    ResumeScanning(3000);
+                    ResumeScanning(1000);
                     return;
                 }
                 
                 var empCredit = await supabase.GetEmployeeWithCreditAsync(employeeCode);
                 
+                // แสดงเวลาเข้างาน (ถ้ามี)
+                if (empCredit?.CheckInTime != null)
+                {
+                    lblFingerInfo.Text = $"🕐 เข้างาน: {empCredit.CheckInTime.Value.ToString("HH:mm")}";
+                    Log($"🕐 เข้างาน: {empCredit.CheckInTime.Value.ToString("HH:mm")}");
+                }
+                else
+                {
+                    lblFingerInfo.Text = "⚠️ ไม่พบบันทึกเข้างาน";
+                }
+                
                 if (empCredit == null)
                 {
+                    // ⭐ NEW: Show popup for new employee not in database
+                    ShowNewEmployeePopup(employeeCode);
                     ShowNoCreditMessage(employeeCode, employeeCode);
-                    ResumeScanning(5000);
+                    ResumeScanning(3000); // ให้เวลา popup แสดง
                 }
                 else if (!empCredit.HasTodayCredit || (!empCredit.LunchAvailable && !empCredit.OtMealAvailable))
                 {
                     // No credit available - show 3-language message
                     ShowNoCreditMessage(employeeCode, empCredit.Name);
-                    ResumeScanning(5000);
+                    ResumeScanning(2000);
                 }
                 else if (empCredit.LunchUsed)
                 {
                     // Already used today
                     ShowAlreadyUsedMessage(employeeCode, empCredit.Name);
-                    ResumeScanning(5000);
+                    ResumeScanning(2000);
                 }
                 else if (empCredit.LunchAvailable && !empCredit.LunchUsed)
                 {
@@ -977,14 +1631,14 @@ namespace FpTest
                         Log($"❌ ใช้ Credit ไม่สำเร็จ");
                     }
                     
-                    ResumeScanning(5000);
+                    ResumeScanning(2000);
                 }
                 else
                 {
                     lblCreditStatus.Text = empCredit.GetCreditStatus();
                     lblCreditStatus.ForeColor = Color.Gray;
                     Log($"💳 Credit: {empCredit.GetCreditStatus()}");
-                    ResumeScanning(5000);
+                    ResumeScanning(2000);
                 }
             }
             catch (Exception ex)
@@ -992,7 +1646,7 @@ namespace FpTest
                 lblCreditStatus.Text = $"❌ Error: {ex.Message}";
                 lblCreditStatus.ForeColor = dangerColor;
                 Log($"❌ Credit error: {ex.Message}");
-                ResumeScanning(3000);
+                ResumeScanning(1000);
             }
         }
         
@@ -1016,6 +1670,9 @@ namespace FpTest
             // Show popup
             MessageBox.Show(message, "⚠️ No Credit / ไม่มีสิทธิ์", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             
+            // Clear display after popup closed
+            ClearResult();
+            
             Log($"❌ {pin} - {name}: ไม่มีสิทธิ์อาหาร");
         }
         
@@ -1033,6 +1690,9 @@ namespace FpTest
             lblCreditStatus.ForeColor = Color.Gray;
             
             MessageBox.Show(message, "ℹ️ Already Used / ใช้แล้ว", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            
+            // Clear display after popup closed
+            ClearResult();
             
             Log($"ℹ️ {pin} - {name}: ใช้สิทธิ์ไปแล้ววันนี้");
         }
@@ -1054,6 +1714,34 @@ namespace FpTest
             MessageBox.Show(message, "✅ Success / สำเร็จ!", MessageBoxButtons.OK, MessageBoxIcon.Information);
             
             Log($"✅ {pin} - {name}: ใช้สิทธิ์สำเร็จ!");
+        }
+        
+        private void ShowNewEmployeePopup(string employeeCode)
+        {
+            var today = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+            
+            var message = $"📅 {today}\n" +
+                $"🆕 รหัสพนักงาน: {employeeCode}\n\n" +
+                $"🇹🇭 ⚠️ พนักงานใหม่!\n" +
+                $"รหัสนี้ยังไม่มีในฐานข้อมูล Supabase\n" +
+                $"กรุณาเพิ่มพนักงานที่ Admin Panel\n\n" +
+                $"🇬🇧 ⚠️ New Employee!\n" +
+                $"This code is not in database.\n" +
+                $"Please add at Admin Panel.\n\n" +
+                $"🇲🇲 ⚠️ ဝန်ထမ်းအသစ်!\n" +
+                $"ဤကုဒ်သည် database တွင်မရှိပါ။";
+            
+            lblCreditStatus.Text = "🆕 พนักงานใหม่ / New Employee";
+            lblCreditStatus.ForeColor = Color.FromArgb(230, 126, 34);
+            
+            Log($"🆕 พนักงานใหม่: {employeeCode} - ไม่พบในฐานข้อมูล!");
+            
+            // Show popup asynchronously to not block
+            Task.Run(() => {
+                this.Invoke((Action)(() => {
+                    MessageBox.Show(message, "🆕 พนักงานใหม่ / New Employee", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }));
+            });
         }
         
         private void ResumeScanning(int delayMs)

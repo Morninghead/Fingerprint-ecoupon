@@ -12,15 +12,23 @@ namespace FpTest
         private readonly string _url;
         private readonly string _key;
         private readonly HttpClient _client;
+        
+        // Cache for employee data (to avoid repeated API calls)
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, EmployeeWithCredit> _empCache 
+            = new System.Collections.Concurrent.ConcurrentDictionary<string, EmployeeWithCredit>();
+        private DateTime _cacheTime = DateTime.MinValue;
 
         public SupabaseClient(string url, string key)
         {
             _url = url.TrimEnd('/');
             _key = key;
             _client = new HttpClient();
+            _client.Timeout = TimeSpan.FromSeconds(10); // 10 second timeout
             _client.DefaultRequestHeaders.Add("apikey", _key);
             _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {_key}");
         }
+        
+        public void ClearCache() { _empCache.Clear(); _cacheTime = DateTime.MinValue; }
         
         // Helper for PATCH (not available in .NET 4.8)
         private async Task<HttpResponseMessage> SendPatchAsync(string url, HttpContent content)
@@ -34,9 +42,17 @@ namespace FpTest
 
         /// <summary>
         /// Get employee by employee_code with their today's credits
+        /// Uses cache for 30 seconds to speed up repeated scans
         /// </summary>
         public async Task<EmployeeWithCredit> GetEmployeeWithCreditAsync(string employeeCode)
         {
+            // Check cache first (valid for 30 seconds)
+            if (_empCache.TryGetValue(employeeCode, out var cached) && 
+                (DateTime.Now - _cacheTime).TotalSeconds < 30)
+            {
+                return cached;
+            }
+            
             try
             {
                 // First get employee with company
@@ -89,6 +105,29 @@ namespace FpTest
                     if (mealType == "OT_MEAL") result.OtMealUsed = true;
                 }
 
+                // Get today's attendance (check-in time)
+                // Note: attendance table uses employee_code and check_type='I' for IN
+                try
+                {
+                    var attendanceResponse = await _client.GetStringAsync(
+                        $"{_url}/rest/v1/attendance?employee_code=eq.{employeeCode}&check_time=gte.{today}T00:00:00&check_type=eq.I&order=check_time.asc&limit=1");
+                    
+                    var attendance = JArray.Parse(attendanceResponse);
+                    if (attendance.Count > 0)
+                    {
+                        var checkTimeStr = attendance[0]["check_time"]?.ToString();
+                        if (DateTime.TryParse(checkTimeStr, out DateTime checkTime))
+                        {
+                            result.CheckInTime = checkTime;
+                        }
+                    }
+                }
+                catch { /* ไม่มี attendance - ไม่เป็นไร */ }
+
+                // Update cache
+                _empCache[employeeCode] = result;
+                _cacheTime = DateTime.Now;
+                
                 return result;
             }
             catch (Exception ex)
@@ -213,6 +252,7 @@ namespace FpTest
         public bool OtMealUsed { get; set; }
         public decimal LunchPrice { get; set; } = 45m;
         public decimal OtMealPrice { get; set; } = 45m;
+        public DateTime? CheckInTime { get; set; }
 
         public string GetCreditStatus()
         {

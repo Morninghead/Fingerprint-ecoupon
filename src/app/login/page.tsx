@@ -49,28 +49,26 @@ export default function AuthPage() {
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">E-Coupon</h1>
-          <p className="mt-2 text-gray-600">Employee meal credit management system</p>
+          <p className="mt-2 text-gray-700">Employee meal credit management system</p>
         </div>
 
         {/* Toggle Login/Signup */}
         <div className="flex bg-gray-100 rounded-lg p-1 mb-8">
           <button
             onClick={() => setIsLogin(true)}
-            className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
-              isLogin
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600'
-            }`}
+            className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${isLogin
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-600'
+              }`}
           >
             Login
           </button>
           <button
             onClick={() => setIsLogin(false)}
-            className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
-              !isLogin
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600'
-            }`}
+            className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${!isLogin
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-600'
+              }`}
           >
             Sign Up
           </button>
@@ -86,7 +84,7 @@ export default function AuthPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-600"
               placeholder="admin@company.com"
               required
             />
@@ -100,7 +98,7 @@ export default function AuthPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-600"
               placeholder="••••••••••"
               required
               minLength={6}
