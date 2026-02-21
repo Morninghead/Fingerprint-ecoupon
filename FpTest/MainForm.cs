@@ -52,6 +52,7 @@ namespace FpTest
         private Button btnStartScan;
         private Button btnStopScan;
         private Button btnSync;
+        private Button btnSyncToCloud;
         
         // Progress bar
         private ProgressBar progressBar;
@@ -111,42 +112,122 @@ namespace FpTest
         {
             Log("🚀 เริ่มต้นระบบอัตโนมัติ...");
             
-            // Step 1: Auto-connect hardware (ทำก่อน - ไม่ต้องรอ sync)
-            await Task.Delay(200); // Wait for UI to render
-            Log("🔌 กำลังเชื่อมต่อ Scanner...");
+            // === Step 1: เชื่อมต่อ Scanner ===
+            await Task.Delay(200);
+            Log("🔌 [1/4] กำลังเชื่อมต่อ Scanner...");
             BtnInit_Click(sender, e);
+            await Task.Delay(500);
             
-            // Step 2: Sync attendance ใน background (ไม่ block startup)
-            // DISABLED: ปิดการ sync จากเครื่อง ZKTeco ชั่วคราว
-            if (false && syncService != null)
+            if (fpcHandle == 0)
             {
-                _ = Task.Run(async () => {
+                Log("⚠️ Scanner ยังไม่พร้อม - รอ 2 วินาที...");
+                await Task.Delay(2000);
+            }
+            
+            if (fpcHandle == 0)
+            {
+                Log("❌ ไม่สามารถเชื่อมต่อ Scanner - กรุณากดปุ่ม 🔌 Scanner");
+                return;
+            }
+            
+            // === Step 2: โหลด Templates (MDB → Cache → Supabase) ===
+            Log("📂 [2/4] กำลังโหลด Templates...");
+            BtnLoadTemplates_Click(sender, e);
+            
+            // รอให้โหลดเสร็จ
+            await Task.Delay(1000);
+            int waitCount = 0;
+            while (templateCount == 0 && waitCount < 15)
+            {
+                await Task.Delay(500);
+                waitCount++;
+            }
+            
+            if (templateCount == 0)
+            {
+                Log("⚠️ ไม่พบ Templates - กรุณากดปุ่ม 📥 ดูดจากเครื่อง");
+                return;
+            }
+            
+            // === Step 3: Sync to Cloud (smart check — skip if recent) ===
+            btnSyncToCloud.Enabled = true;
+            
+            // ⭐ Smart sync: เช็คว่าจำเป็นต้อง sync หรือไม่
+            const int SYNC_INTERVAL_MINUTES = 30; // sync ทุก 30 นาที
+            const int SYNC_CUTOFF_HOUR = 11;      // หลัง 11 โมง ไม่ sync attendance
+            bool needsAttendanceSync = true;
+            
+            // เช็คเวลา — หลัง 11 โมงไม่ต้อง sync (คนสแกนเข้างานเสร็จแล้ว)
+            if (DateTime.Now.Hour >= SYNC_CUTOFF_HOUR)
+            {
+                needsAttendanceSync = false;
+                Log($"⏭️ [3/4] Attendance sync ข้ามได้ (หลัง {SYNC_CUTOFF_HOUR}:00 แล้ว)");
+            }
+            
+            // เช็ค interval — ถ้าเพิ่ง sync ไม่เกิน 30 นาที ก็ข้าม
+            if (needsAttendanceSync)
+            {
+                try
+                {
+                    var stateFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fptest-sync-state.json");
+                    if (File.Exists(stateFile))
+                    {
+                        var stateJson = JObject.Parse(File.ReadAllText(stateFile));
+                        var lastRunStr = stateJson["LastRun"]?.ToString();
+                        if (DateTime.TryParse(lastRunStr, out DateTime lastRun))
+                        {
+                            var minutesSinceSync = (DateTime.Now - lastRun).TotalMinutes;
+                            if (minutesSinceSync < SYNC_INTERVAL_MINUTES)
+                            {
+                                needsAttendanceSync = false;
+                                Log($"⏭️ [3/4] Attendance sync ข้ามได้ (sync ล่าสุด {minutesSinceSync:F0} นาทีที่แล้ว < {SYNC_INTERVAL_MINUTES} นาที)");
+                            }
+                            else
+                            {
+                                Log($"☁️ [3/4] ต้อง sync (ครั้งล่าสุด {minutesSinceSync:F0} นาทีที่แล้ว)");
+                            }
+                        }
+                    }
+                }
+                catch { /* ถ้าอ่าน state ไม่ได้ → sync เสมอ */ }
+            }
+            
+            try
+            {
+                // Sync Attendance — เฉพาะเมื่อจำเป็น
+                if (needsAttendanceSync && syncService != null)
+                {
+                    Log("📡 กำลัง Sync Attendance จากเครื่องสแกน...");
                     try
                     {
-                        var result = await syncService.SyncAllDevicesAsync(msg => 
-                            this.Invoke((Action)(() => Log(msg))));
-                        if (result.NewRecords > 0)
-                            this.Invoke((Action)(() => Log($"🎉 Sync เสร็จ! +{result.NewRecords} records")));
+                        var attResult = await Task.Run(() => syncService.SyncAllDevicesAsync(msg =>
+                            this.Invoke((Action)(() => Log(msg)))));
+                        Log($"✅ Attendance: {attResult.NewRecords} รายการใหม่");
                     }
-                    catch { /* devices อาจไม่พร้อม - ไม่เป็นไร */ }
-                });
+                    catch (Exception attEx)
+                    {
+                        Log($"⚠️ Attendance: {attEx.Message} (ข้ามไป)");
+                    }
+                }
+                
+                // Sync Employees — มี incremental check ในตัวแล้ว (เร็วมาก)
+                try { await UploadEmployeesToSupabaseAsync(); }
+                catch (Exception empEx) { Log($"⚠️ Employee: {empEx.Message} (ข้ามไป)"); }
+                
+                // Sync Templates — มี incremental check ในตัวแล้ว (เร็วมาก)
+                try { await UploadTemplatesToSupabaseAsync(); }
+                catch (Exception tplEx) { Log($"⚠️ Template: {tplEx.Message} (ข้ามไป)"); }
+            }
+            catch (Exception ex)
+            {
+                Log($"⚠️ Sync: {ex.Message}");
             }
             
-            // Step 3: Auto-load templates (if connected)
-            if (btnLoadTemplates.Enabled)
-            {
-                await Task.Delay(300);
-                Log("📂 กำลังโหลด Templates...");
-                BtnLoadTemplates_Click(sender, e);
-                
-                // Step 4: Auto-start scanning (always on)
-                await Task.Delay(500);
-                if (btnStartScan.Enabled && templateCount > 0)
-                {
-                    Log("🟢 เริ่มสแกนอัตโนมัติ...");
-                    BtnStartScan_Click(sender, e);
-                }
-            }
+            // === Step 4: เริ่มสแกนอัตโนมัติ ===
+            Log("🟢 [4/4] เริ่มสแกนอัตโนมัติ...");
+            BtnStartScan_Click(sender, e);
+            
+            Log("🎉 ระบบพร้อมใช้งาน!");
         }
         
         private void LoadConfig()
@@ -223,46 +304,34 @@ namespace FpTest
             };
             pnlStatus.Controls.Add(lblTemplateCount);
             
-            // === แถว 1: Connection + Load ===
+            // === ปุ่มควบคุม (3 ปุ่มหลัก) ===
             btnInit = CreateButton("🔌 Scanner", 20, 75, primaryColor);
-            btnInit.Width = 95;
+            btnInit.Width = 120;
             btnInit.Click += BtnInit_Click;
             pnlStatus.Controls.Add(btnInit);
             
-            btnLoadTemplates = CreateButton("📂 Cache", 120, 75, primaryColor);
-            btnLoadTemplates.Width = 90;
-            btnLoadTemplates.Click += BtnLoadTemplates_Click;
-            btnLoadTemplates.Enabled = false;
-            pnlStatus.Controls.Add(btnLoadTemplates);
+            var btnDownloadTemplates = CreateButton("📥 ดูดจากเครื่อง", 150, 75, Color.FromArgb(230, 126, 34));
+            btnDownloadTemplates.Width = 135;
+            btnDownloadTemplates.Click += BtnDownloadTemplates_Click;
+            pnlStatus.Controls.Add(btnDownloadTemplates);
             
-            btnLoadFromSupabase = CreateButton("🌐 Supabase", 215, 75, Color.FromArgb(52, 152, 219));
-            btnLoadFromSupabase.Width = 95;
-            btnLoadFromSupabase.Click += BtnLoadFromSupabase_Click;
-            btnLoadFromSupabase.Enabled = false;
-            pnlStatus.Controls.Add(btnLoadFromSupabase);
+            btnSyncToCloud = CreateButton("☁️ Sync to Cloud", 295, 75, Color.FromArgb(46, 204, 113));
+            btnSyncToCloud.Width = 135;
+            btnSyncToCloud.Click += BtnSyncToCloud_Click;
+            btnSyncToCloud.Enabled = false;
+            pnlStatus.Controls.Add(btnSyncToCloud);
             
-            btnLoadFromMDB = CreateButton("📁 MDB", 315, 75, Color.FromArgb(142, 68, 173));
-            btnLoadFromMDB.Width = 85;
-            btnLoadFromMDB.Click += BtnLoadFromMDB_Click;
-            btnLoadFromMDB.Enabled = false;
-            pnlStatus.Controls.Add(btnLoadFromMDB);
-            
-            // === แถว 2: Sync + ZKTime ===
-            btnSync = CreateButton("🔄 Sync Attendance", 20, 110, Color.FromArgb(22, 160, 133));
-            btnSync.Width = 145;
+            // === Row 2: Sync Attendance button ===
+            btnSync = CreateButton("🔄 Sync Attendance", 20, 115, Color.FromArgb(52, 152, 219));
+            btnSync.Width = 160;
             btnSync.Click += BtnSync_Click;
             pnlStatus.Controls.Add(btnSync);
             
-            btnLoadFromDevice = CreateButton("⚡ โหลด ZKTime", 170, 110, Color.FromArgb(41, 128, 185));
-            btnLoadFromDevice.Width = 130;
-            btnLoadFromDevice.Click += BtnLoadZKTimeMDB_Click;
-            pnlStatus.Controls.Add(btnLoadFromDevice);
-            
-            // === แถว 3: Progress bar ===
+            // Progress bar
             progressBar = new ProgressBar
             {
-                Location = new Point(20, 150),
-                Size = new Size(280, 25),
+                Location = new Point(20, 155),
+                Size = new Size(280, 22),
                 Style = ProgressBarStyle.Continuous,
                 Visible = false
             };
@@ -270,7 +339,7 @@ namespace FpTest
             
             lblProgress = new Label
             {
-                Location = new Point(310, 153),
+                Location = new Point(310, 157),
                 Size = new Size(100, 20),
                 Text = "",
                 ForeColor = primaryColor,
@@ -416,29 +485,107 @@ namespace FpTest
             {
                 Log("🔌 กำลังเชื่อมต่อ Scanner...");
                 
-                Type zkType = Type.GetTypeFromProgID("ZKFPEngXControl.ZKFPEngX");
+                // Step 1: ค้นหา COM component
+                Type zkType = null;
+                try
+                {
+                    zkType = Type.GetTypeFromProgID("ZKFPEngXControl.ZKFPEngX");
+                }
+                catch (Exception ex1)
+                {
+                    Log($"❌ [Step1] GetTypeFromProgID failed: {ex1.Message}");
+                }
+                
                 if (zkType == null)
                 {
-                    MessageBox.Show("ไม่พบ ZK9500 SDK!\nกรุณาติดตั้ง ZKFinger SDK ก่อน", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    Log("❌ ไม่พบ ZKFPEngXControl.ZKFPEngX COM component");
+                    Log("   💡 กรุณาติดตั้ง ZKFinger SDK และ register COM component");
+                    Log("   💡 ลอง: regsvr32 ZKFPEngXControl.dll");
+                    UpdateStatus("🔴 ไม่พบ ZK9500 SDK", dangerColor);
+                    btnInit.Enabled = true;
+                    btnInit.Text = "🔌 Scanner";
+                    return;
+                }
+                Log("   ✅ [Step1] พบ COM type: " + zkType.FullName);
+                
+                // Step 2: สร้าง instance
+                try
+                {
+                    zkfp = Activator.CreateInstance(zkType);
+                }
+                catch (Exception ex2)
+                {
+                    Log($"❌ [Step2] CreateInstance failed: {ex2.Message}");
+                    if (ex2.InnerException != null)
+                        Log($"   Inner: {ex2.InnerException.Message}");
+                    UpdateStatus("🔴 สร้าง COM object ไม่ได้", dangerColor);
+                    btnInit.Enabled = true;
+                    btnInit.Text = "🔌 Scanner";
                     return;
                 }
                 
-                zkfp = Activator.CreateInstance(zkType);
-                zkfp.FakeFunOn = 1;
+                if (zkfp == null)
+                {
+                    Log("❌ [Step2] zkfp is null after CreateInstance");
+                    UpdateStatus("🔴 COM object เป็น null", dangerColor);
+                    btnInit.Enabled = true;
+                    btnInit.Text = "🔌 Scanner";
+                    return;
+                }
+                Log("   ✅ [Step2] สร้าง COM instance สำเร็จ");
                 
-                if (zkfp.InitEngine() == 0)
+                // Step 3: ตั้งค่า FakeFunOn
+                try
+                {
+                    zkfp.FakeFunOn = 1;
+                    Log("   ✅ [Step3] FakeFunOn = 1");
+                }
+                catch (Exception ex3)
+                {
+                    Log($"⚠️ [Step3] FakeFunOn failed: {ex3.Message} (ข้ามไป)");
+                }
+                
+                // Step 4: InitEngine
+                int initResult = -1;
+                try
+                {
+                    initResult = zkfp.InitEngine();
+                    Log($"   ℹ️ [Step4] InitEngine result: {initResult}");
+                }
+                catch (Exception ex4)
+                {
+                    Log($"❌ [Step4] InitEngine exception: {ex4.Message}");
+                    Log("   💡 Scanner อาจไม่ได้เสียบ USB หรือ driver ไม่ได้ติดตั้ง");
+                    UpdateStatus("🔴 InitEngine failed", dangerColor);
+                    btnInit.Enabled = true;
+                    btnInit.Text = "🔌 Scanner";
+                    return;
+                }
+                
+                if (initResult == 0)
                 {
                     // Use version 10 to match stored templates (TEMPLATE4 with DivisionFP=10)
-                    zkfp.FPEngineVersion = "10";
-                    fpcHandle = zkfp.CreateFPCacheDB();
+                    try { zkfp.FPEngineVersion = "10"; } catch { }
                     
-                    string sn = zkfp.SensorSN;
+                    try
+                    {
+                        fpcHandle = zkfp.CreateFPCacheDB();
+                    }
+                    catch (Exception exCache)
+                    {
+                        Log($"⚠️ CreateFPCacheDB failed: {exCache.Message}");
+                        fpcHandle = 0;
+                    }
+                    
+                    string sn = "";
+                    try { sn = zkfp.SensorSN; } catch { sn = "unknown"; }
+                    
                     UpdateStatus($"🟢 เชื่อมต่อแล้ว (SN: {sn})", successColor);
                     
                     btnInit.Enabled = false;
-                    btnLoadTemplates.Enabled = true;
-                    btnLoadFromSupabase.Enabled = true;
-                    btnLoadFromMDB.Enabled = true;
+                    if (btnLoadTemplates != null) btnLoadTemplates.Enabled = true;
+                    if (btnLoadFromSupabase != null) btnLoadFromSupabase.Enabled = true;
+                    if (btnLoadFromMDB != null) btnLoadFromMDB.Enabled = true;
                     btnEnroll.Enabled = true;
                     btnStartScan.Enabled = true;
                     
@@ -447,15 +594,25 @@ namespace FpTest
                 }
                 else
                 {
-                    throw new Exception("InitEngine failed");
+                    Log($"❌ InitEngine returned: {initResult}");
+                    Log("   💡 สาเหตุที่เป็นไปได้:");
+                    Log("   - Scanner ZK9500 ไม่ได้เสียบ USB");
+                    Log("   - USB driver ไม่ได้ติดตั้ง");
+                    Log("   - Scanner ถูกใช้งานโดยโปรแกรมอื่น");
+                    UpdateStatus("🔴 เชื่อมต่อไม่ได้", dangerColor);
+                    btnInit.Enabled = true;
+                    btnInit.Text = "🔌 Scanner";
                 }
             }
             catch (Exception ex)
             {
-                Log($"❌ {ex.Message}");
+                Log($"❌ Unexpected: {ex.Message}");
+                if (ex.InnerException != null)
+                    Log($"   Inner: {ex.InnerException.Message}");
+                Log($"   StackTrace: {ex.StackTrace}");
                 UpdateStatus("🔴 เชื่อมต่อไม่ได้", dangerColor);
                 btnInit.Enabled = true;
-                btnInit.Text = "🔌 เชื่อมต่อ Scanner";
+                btnInit.Text = "🔌 Scanner";
             }
         }
         
@@ -517,9 +674,16 @@ namespace FpTest
                 return;
             }
             
+            if (syncService.IsSyncing)
+            {
+                Log("⏳ Sync กำลังทำงานอยู่แล้ว — รอให้เสร็จก่อน");
+                MessageBox.Show("Sync กำลังทำงานอยู่แล้ว\nรอให้เสร็จก่อนกดอีกครั้ง", "รอสักครู่", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            
             btnSync.Enabled = false;
             btnSync.Text = "⏳ กำลัง Sync...";
-            Log("🔄 เริ่ม Sync attendance จาก ZKTeco devices...");
+            Log("🔄 กดปุ่ม Sync Attendance...");
             
             try
             {
@@ -538,10 +702,15 @@ namespace FpTest
                         $"Meal credits จะถูกสร้างอัตโนมัติ", 
                         "Sync Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
+                else
+                {
+                    Log("ℹ️ ไม่มีข้อมูลใหม่จากเครื่องสแกน");
+                }
             }
             catch (Exception ex)
             {
                 Log($"❌ Sync error: {ex.Message}");
+                MessageBox.Show($"Sync ล้มเหลว:\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
@@ -556,39 +725,61 @@ namespace FpTest
         
         private async void BtnLoadTemplates_Click(object sender, EventArgs e)
         {
-            btnLoadTemplates.Enabled = false;
-            btnLoadTemplates.Text = "⏳ กำลังโหลด...";
+            if (btnLoadTemplates != null)
+            {
+                btnLoadTemplates.Enabled = false;
+                btnLoadTemplates.Text = "⏳ กำลังโหลด...";
+            }
             Log("📂 กำลังโหลด templates...");
             
             try
             {
-                if (File.Exists(cacheFilePath))
+                // ⭐ Priority: MDB first (has ALL templates), then cache, then Supabase
+                string mdbPath = @"X:\FP-E-coupon\Thai01\ATT2000.MDB";
+                string syncPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FpTest_Sync.mdb");
+                
+                if (File.Exists(syncPath) || File.Exists(mdbPath))
                 {
-                    Log("📂 พบ cache file - กำลังโหลด...");
+                    Log("📁 พบ MDB - โหลดจาก MDB โดยตรง (ครบทุก template)...");
+                    LoadFromMDB();
+                }
+                else if (File.Exists(cacheFilePath))
+                {
+                    Log("📂 ไม่พบ MDB - ใช้ cache file แทน...");
                     await LoadTemplatesFromCache();
                 }
                 else
                 {
-                    Log("🌐 ไม่พบ cache - กำลังโหลดจาก Supabase...");
+                    Log("🌐 ไม่พบ MDB/cache - กำลังโหลดจาก Supabase...");
                     await LoadTemplatesFromSupabase();
                 }
                 
                 lblTemplateCount.Text = $"📁 Templates: {templateCount} ({employees.Count} คน)";
                 btnStartScan.Enabled = true;
-                btnLoadTemplates.Text = "✅ โหลดแล้ว";
+                if (btnLoadTemplates != null) btnLoadTemplates.Text = "✅ โหลดแล้ว";
             }
             catch (Exception ex)
             {
                 Log($"❌ {ex.Message}");
-                btnLoadTemplates.Enabled = true;
-                btnLoadTemplates.Text = "📂 โหลด Templates";
+                if (btnLoadTemplates != null)
+                {
+                    btnLoadTemplates.Enabled = true;
+                    btnLoadTemplates.Text = "📂 โหลด Templates";
+                }
             }
+        }
+        private void BtnDownloadTemplates_Click(object sender, EventArgs e)
+        {
+            Task.Run(() => LoadTemplatesFromDevice());
         }
         
         private async void BtnLoadFromSupabase_Click(object sender, EventArgs e)
         {
-            btnLoadFromSupabase.Enabled = false;
-            btnLoadFromSupabase.Text = "⏳ กำลังโหลด...";
+            if (btnLoadFromSupabase != null)
+            {
+                btnLoadFromSupabase.Enabled = false;
+                btnLoadFromSupabase.Text = "⏳ กำลังโหลด...";
+            }
             Log("🌐 กำลังโหลด templates จาก Supabase...");
             
             try
@@ -601,20 +792,26 @@ namespace FpTest
                 
                 lblTemplateCount.Text = $"📁 Templates: {templateCount} ({employees.Count} คน)";
                 btnStartScan.Enabled = true;
-                btnLoadFromSupabase.Text = "✅ โหลดแล้ว";
+                if (btnLoadFromSupabase != null) btnLoadFromSupabase.Text = "✅ โหลดแล้ว";
             }
             catch (Exception ex)
             {
                 Log($"❌ {ex.Message}");
-                btnLoadFromSupabase.Enabled = true;
-                btnLoadFromSupabase.Text = "🌐 โหลดจาก Supabase";
+                if (btnLoadFromSupabase != null)
+                {
+                    btnLoadFromSupabase.Enabled = true;
+                    btnLoadFromSupabase.Text = "🌐 โหลดจาก Supabase";
+                }
             }
         }
         
         private void BtnLoadFromMDB_Click(object sender, EventArgs e)
         {
-            btnLoadFromSupabase.Enabled = false;
-            btnLoadFromSupabase.Text = "⏳ กำลังโหลด...";
+            if (btnLoadFromSupabase != null)
+            {
+                btnLoadFromSupabase.Enabled = false;
+                btnLoadFromSupabase.Text = "⏳ กำลังโหลด...";
+            }
             
             try
             {
@@ -626,13 +823,16 @@ namespace FpTest
                 
                 lblTemplateCount.Text = $"📁 Templates: {templateCount} ({employees.Count} คน)";
                 btnStartScan.Enabled = true;
-                btnLoadFromSupabase.Text = "✅ โหลดแล้ว";
+                if (btnLoadFromSupabase != null) btnLoadFromSupabase.Text = "✅ โหลดแล้ว";
             }
             catch (Exception ex)
             {
                 Log($"❌ {ex.Message}");
-                btnLoadFromSupabase.Enabled = true;
-                btnLoadFromSupabase.Text = "📁 โหลดจาก MDB";
+                if (btnLoadFromSupabase != null)
+                {
+                    btnLoadFromSupabase.Enabled = true;
+                    btnLoadFromSupabase.Text = "📁 โหลดจาก MDB";
+                }
             }
         }
         
@@ -724,20 +924,41 @@ namespace FpTest
                 return;
             }
             
+            Log("🌐 กำลังโหลด templates จาก Supabase...");
+            templates.Clear();
+            
             using (var http = new HttpClient())
             {
                 http.DefaultRequestHeaders.Add("apikey", supabaseKey);
                 http.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
                 
-                var response = await http.GetAsync($"{SUPABASE_URL}/rest/v1/fingerprint_templates?select=*&limit=1000");
-                var json = await response.Content.ReadAsStringAsync();
-                var templateArray = JArray.Parse(json);
+                // ⭐ Paginate to fetch ALL templates (not just 1000)
+                var allTemplates = new JArray();
+                int pageSize = 1000;
+                int offset = 0;
                 
-                Log($"🌐 ดึงข้อมูล {templateArray.Count} templates จาก Supabase");
+                while (true)
+                {
+                    var response = await http.GetAsync($"{SUPABASE_URL}/rest/v1/fingerprint_templates?select=*&limit={pageSize}&offset={offset}");
+                    var json = await response.Content.ReadAsStringAsync();
+                    var batch = JArray.Parse(json);
+                    
+                    if (batch.Count == 0) break;
+                    
+                    foreach (var item in batch)
+                        allTemplates.Add(item);
+                    
+                    Log($"🌐 ดึงข้อมูล page {(offset / pageSize) + 1}: {batch.Count} templates");
+                    
+                    if (batch.Count < pageSize) break; // Last page
+                    offset += pageSize;
+                }
+                
+                Log($"🌐 รวมทั้งหมด {allTemplates.Count} templates จาก Supabase");
                 
                 int loaded = 0;
                 int cacheAdded = 0;
-                foreach (var t in templateArray)
+                foreach (var t in allTemplates)
                 {
                     try
                     {
@@ -769,6 +990,14 @@ namespace FpTest
                         }
                         employees[mdbUserId].FingerCount++;
                         loaded++;
+
+                        // Populate local list for Cloud Sync
+                        templates.Add(new TemplateInfo {
+                            MdbUserId = mdbUserId,
+                            EmployeeCode = employeeCode,
+                            FingerId = fingerId,
+                            TemplateData = Convert.FromBase64String(base64Template)
+                        });
                     }
                     catch { }
                 }
@@ -783,7 +1012,7 @@ namespace FpTest
                 {
                     var cache = new JObject
                     {
-                        ["templates"] = templateArray,
+                        ["templates"] = allTemplates,
                         ["employees"] = new JObject(),
                         ["timestamp"] = DateTime.Now.ToString("o")
                     };
@@ -813,6 +1042,7 @@ namespace FpTest
             }
             
             Log($"📂 กำลังโหลดจาก MDB: {mdbPath}");
+            templates.Clear();
             
             try
             {
@@ -890,7 +1120,7 @@ namespace FpTest
                             {
                                 string base64Template = Convert.ToBase64String(templateData);
                                 int result = zkfp.AddRegTemplateStrToFPCacheDB(fpcHandle, cacheId, base64Template);
-                                if (result == 0) cacheAdded++;
+                                if (result != 0) cacheAdded++; // COM ActiveX: 1=True=Success
                             }
                             
                             if (loaded < 5)
@@ -912,6 +1142,14 @@ namespace FpTest
                                     EmployeeCode = empCode,
                                     Name = empName
                                 };
+                                
+                                // Populate local list for Cloud Sync
+                                templates.Add(new TemplateInfo {
+                                    MdbUserId = userId,
+                                    EmployeeCode = empCode,
+                                    FingerId = fingerId,
+                                    TemplateData = templateData
+                                });
                             }
                             employees[userId].FingerCount++;
                         }
@@ -941,9 +1179,12 @@ namespace FpTest
         /// </summary>
         private async void BtnLoadZKTimeMDB_Click(object sender, EventArgs e)
         {
-            btnLoadFromDevice.Enabled = false;
-            btnLoadFromDevice.Text = "⏳ โหลด...";
-            btnLoadFromDevice.BackColor = Color.FromArgb(149, 165, 166);
+            if (btnLoadFromDevice != null)
+            {
+                btnLoadFromDevice.Enabled = false;
+                btnLoadFromDevice.Text = "⏳ โหลด...";
+                btnLoadFromDevice.BackColor = Color.FromArgb(149, 165, 166);
+            }
             
             try
             {
@@ -982,9 +1223,12 @@ namespace FpTest
             }
             finally
             {
-                btnLoadFromDevice.Enabled = true;
-                btnLoadFromDevice.Text = "⚡ โหลด ZKTime";
-                btnLoadFromDevice.BackColor = Color.FromArgb(41, 128, 185);
+                if (btnLoadFromDevice != null)
+                {
+                    btnLoadFromDevice.Enabled = true;
+                    btnLoadFromDevice.Text = "⚡ โหลด ZKTime";
+                    btnLoadFromDevice.BackColor = Color.FromArgb(41, 128, 185);
+                }
             }
         }
         
@@ -1110,7 +1354,16 @@ namespace FpTest
                     var json = Newtonsoft.Json.JsonConvert.SerializeObject(requestBody);
                     var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
                     
-                    var response = await client.PostAsync("http://localhost:3000/api/auto-grant-credits", content);
+                    var apiUrl = "http://localhost:3000";
+                    try {
+                        var urlFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "api_url.txt");
+                        if (File.Exists(urlFile)) {
+                            var _url = File.ReadAllText(urlFile).Trim();
+                            if (!string.IsNullOrEmpty(_url)) apiUrl = _url;
+                        }
+                    } catch { }
+
+                    var response = await client.PostAsync($"{apiUrl.TrimEnd('/')}/api/auto-grant-credits", content);
                     
                     if (response.IsSuccessStatusCode)
                     {
@@ -1226,7 +1479,7 @@ namespace FpTest
                         this.Invoke((Action)(() => Log($"  📁 #{l+1}: userId={t.UserId}, finger={t.FingerId}, size={t.TemplateLength}, result={result}")));
                     }
                     
-                    if (result == 0) cacheAdded++;
+                    if (result != 0) cacheAdded++; // COM ActiveX: 1=True=Success
                     loaded++;
                     
                     // Track employee
@@ -1238,10 +1491,21 @@ namespace FpTest
                             employees[uid2] = new EmployeeInfo
                             {
                                 MdbUserId = uid2,
+                                EmployeeCode = t.UserId, // Use Enrollment Number as Code
                                 Name = userName
                             };
                         }
                         employees[uid2].FingerCount++;
+                        
+                        // Add to local list for Cloud Sync
+                        try {
+                            templates.Add(new TemplateInfo {
+                                MdbUserId = uid2,
+                                EmployeeCode = t.UserId,
+                                FingerId = t.FingerId,
+                                TemplateData = Convert.FromBase64String(t.TemplateData)
+                            });
+                        } catch { } // Skip if bad base64
                     }));
                     
                     // Collect for saving to cache
@@ -1287,6 +1551,7 @@ namespace FpTest
                     Log($"✅ Device: {finalCacheAdded}/{finalLoaded} templates เพิ่มสำเร็จ ({employees.Count} คน)");
                     lblTemplateCount.Text = $"Templates: {templateCount} ({employees.Count} คน)";
                     btnStartScan.Enabled = true;
+                    btnSyncToCloud.Enabled = templates.Count > 0;
                 }));
             }
             catch (Exception ex)
@@ -1774,6 +2039,292 @@ namespace FpTest
             string[] names = { "หัวแม่มือขวา", "ชี้ขวา", "กลางขวา", "นางขวา", "ก้อยขวา",
                                "หัวแม่มือซ้าย", "ชี้ซ้าย", "กลางซ้าย", "นางซ้าย", "ก้อยซ้าย" };
             return fingerId >= 0 && fingerId < 10 ? names[fingerId] : $"นิ้ว {fingerId}";
+        }
+        
+        private async void BtnSyncToCloud_Click(object sender, EventArgs e)
+        {
+            btnSyncToCloud.Enabled = false;
+            btnSyncToCloud.Text = "⏳ Syncing...";
+            
+            try
+            {
+                int totalSteps = 3;
+                int step = 0;
+                
+                // === Step 1: Sync Attendance ===
+                step++;
+                Log($"☁️ [{step}/{totalSteps}] กำลัง Sync Attendance...");
+                if (syncService != null)
+                {
+                    try
+                    {
+                        var attResult = await Task.Run(() => syncService.SyncAllDevicesAsync(msg =>
+                            this.Invoke((Action)(() => Log(msg)))));
+                        Log($"✅ Attendance: {attResult.NewRecords} รายการใหม่ จาก {attResult.DevicesSynced} เครื่อง");
+                    }
+                    catch (Exception attEx)
+                    {
+                        Log($"⚠️ Attendance sync ล้มเหลว: {attEx.Message} (ข้ามไป...)");
+                    }
+                }
+                else
+                {
+                    Log("⚠️ ข้าม Attendance - syncService ไม่พร้อม");
+                }
+                
+                // === Step 2: Sync User Info (Employees) ===
+                step++;
+                Log($"☁️ [{step}/{totalSteps}] กำลัง Sync ข้อมูลพนักงาน...");
+                try
+                {
+                    await UploadEmployeesToSupabaseAsync();
+                }
+                catch (Exception empEx)
+                {
+                    Log($"⚠️ Employee sync ล้มเหลว: {empEx.Message} (ข้ามไป...)");
+                }
+                
+                // === Step 3: Sync Fingerprint Templates ===
+                step++;
+                Log($"☁️ [{step}/{totalSteps}] กำลัง Sync ลายนิ้วมือ...");
+                await UploadTemplatesToSupabaseAsync();
+                
+                btnSyncToCloud.Text = "✅ Synced";
+                Log("🎉 Sync ทั้งหมดเสร็จสิ้น!");
+                await Task.Delay(3000);
+                btnSyncToCloud.Text = "☁️ Sync to Cloud";
+                btnSyncToCloud.Enabled = true;
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ Sync error: {ex.Message}");
+                btnSyncToCloud.Enabled = true;
+                btnSyncToCloud.Text = "☁️ Sync to Cloud";
+            }
+        }
+        
+        private async Task UploadEmployeesToSupabaseAsync()
+        {
+            if (string.IsNullOrEmpty(supabaseKey) || employees.Count == 0)
+            {
+                Log("⚠️ ไม่มีข้อมูลพนักงานที่จะ Sync");
+                return;
+            }
+            
+            // โหลดรายการที่ sync ไปแล้ว
+            var syncedFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "synced_employees.json");
+            var syncedKeys = new HashSet<string>();
+            
+            if (File.Exists(syncedFilePath))
+            {
+                try
+                {
+                    var syncedJson = JObject.Parse(File.ReadAllText(syncedFilePath));
+                    var keys = syncedJson["keys"] as JArray;
+                    if (keys != null)
+                        foreach (var k in keys) syncedKeys.Add(k.ToString());
+                }
+                catch { }
+            }
+            
+            // กรองเฉพาะตัวใหม่/เปลี่ยน
+            var newEmployees = new List<EmployeeInfo>();
+            foreach (var emp in employees.Values)
+            {
+                string code = emp.EmployeeCode ?? emp.MdbUserId.ToString();
+                string key = $"{code}|{emp.Name}|{emp.FingerCount}";
+                if (!syncedKeys.Contains(key))
+                    newEmployees.Add(emp);
+            }
+            
+            if (newEmployees.Count == 0)
+            {
+                Log($"✅ Employee ครบถ้วนแล้ว ({employees.Count} คน) ไม่มีอะไรต้อง Sync");
+                return;
+            }
+            
+            Log($"🌐 พบพนักงานใหม่/เปลี่ยน {newEmployees.Count} คน (จาก {employees.Count} ทั้งหมด)");
+            
+            using (var http = new HttpClient())
+            {
+                http.DefaultRequestHeaders.Add("apikey", supabaseKey);
+                http.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
+                http.DefaultRequestHeaders.Add("Prefer", "resolution=merge-duplicates");
+                
+                var array = new JArray();
+                foreach (var emp in newEmployees)
+                {
+                    string code = emp.EmployeeCode ?? emp.MdbUserId.ToString();
+                    array.Add(new JObject
+                    {
+                        ["employee_code"] = code,
+                        ["pin"] = code,
+                        ["name"] = emp.Name ?? $"Employee {code}"
+                    });
+                }
+                
+                var content = new StringContent(array.ToString(), System.Text.Encoding.UTF8, "application/json");
+                var url = $"{SUPABASE_URL}/rest/v1/employees?on_conflict=employee_code";
+                
+                var response = await http.PostAsync(url, content);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var err = await response.Content.ReadAsStringAsync();
+                    Log($"⚠️ Employee sync error: {err}");
+                    return;
+                }
+                
+                Log($"✅ Employee: +{newEmployees.Count} คนใหม่");
+            }
+            
+            // บันทึกรายการที่ sync แล้ว
+            foreach (var emp in newEmployees)
+            {
+                string code = emp.EmployeeCode ?? emp.MdbUserId.ToString();
+                syncedKeys.Add($"{code}|{emp.Name}|{emp.FingerCount}");
+            }
+            
+            try
+            {
+                var keysArray = new JArray();
+                foreach (var k in syncedKeys) keysArray.Add(k);
+                var syncRecord = new JObject
+                {
+                    ["last_sync"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                    ["total_synced"] = syncedKeys.Count,
+                    ["keys"] = keysArray
+                };
+                File.WriteAllText(syncedFilePath, syncRecord.ToString());
+            }
+            catch { }
+        }
+        
+        private async Task UploadTemplatesToSupabaseAsync()
+        {
+            if (string.IsNullOrEmpty(supabaseKey))
+            {
+                Log("❌ ไม่พบ Supabase Key");
+                return;
+            }
+            
+            if (templates.Count == 0)
+            {
+                Log("⚠️ ไม่มี Templates ที่จะ Sync (กรุณาโหลดจากเครื่องก่อน)");
+                return;
+            }
+            
+            // Step 1: โหลดรายการที่ sync ไปแล้วจาก local file
+            var syncedFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "synced_templates.json");
+            var syncedKeys = new HashSet<string>();
+            
+            if (File.Exists(syncedFilePath))
+            {
+                try
+                {
+                    var syncedJson = JObject.Parse(File.ReadAllText(syncedFilePath));
+                    var keys = syncedJson["keys"] as JArray;
+                    if (keys != null)
+                    {
+                        foreach (var k in keys)
+                            syncedKeys.Add(k.ToString());
+                    }
+                    var lastSync = syncedJson["last_sync"]?.ToString() ?? "ไม่ทราบ";
+                    Log($"🔍 พบรายการ sync เก่า {syncedKeys.Count} รายการ (ครั้งล่าสุด: {lastSync})");
+                }
+                catch { } // ถ้าอ่านไม่ได้ ก็ sync ทั้งหมด
+            }
+            
+            // Step 2: กรองเฉพาะตัวใหม่ (เทียบ employee_code + finger_id + size)
+            var newTemplates = new List<TemplateInfo>();
+            foreach (var t in templates)
+            {
+                string empCode = t.EmployeeCode ?? t.MdbUserId.ToString();
+                string key = $"{empCode}|{t.FingerId}|{t.TemplateData.Length}";
+                if (!syncedKeys.Contains(key))
+                {
+                    newTemplates.Add(t);
+                }
+            }
+            
+            if (newTemplates.Count == 0)
+            {
+                Log("✅ ข้อมูลครบถ้วนแล้ว ไม่มีอะไรต้อง Sync!");
+                return;
+            }
+            
+            Log($"🌐 พบ {newTemplates.Count} templates ใหม่ (จาก {templates.Count} ทั้งหมด, ข้าม {templates.Count - newTemplates.Count} ที่ sync แล้ว)");
+            
+            // Step 3: Upload เฉพาะตัวใหม่
+            using (var http = new HttpClient())
+            {
+                http.DefaultRequestHeaders.Add("apikey", supabaseKey);
+                http.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
+                http.DefaultRequestHeaders.Add("Prefer", "resolution=merge-duplicates");
+                
+                int batchSize = 50;
+                for (int i = 0; i < newTemplates.Count; i += batchSize)
+                {
+                    int count = Math.Min(batchSize, newTemplates.Count - i);
+                    var batch = newTemplates.GetRange(i, count);
+                    
+                    var array = new JArray();
+                    foreach (var t in batch)
+                    {
+                        var base64 = Convert.ToBase64String(t.TemplateData);
+                        array.Add(new JObject
+                        {
+                            ["employee_code"] = t.EmployeeCode ?? t.MdbUserId.ToString(),
+                            ["finger_id"] = t.FingerId,
+                            ["template_data"] = base64,
+                            ["template_size"] = t.TemplateData.Length,
+                            ["mdb_user_id"] = t.MdbUserId
+                        });
+                    }
+                    
+                    var content = new StringContent(array.ToString(), System.Text.Encoding.UTF8, "application/json");
+                    var url = $"{SUPABASE_URL}/rest/v1/fingerprint_templates?on_conflict=employee_code,finger_id";
+                    
+                    var response = await http.PostAsync(url, content);
+                    
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var err = await response.Content.ReadAsStringAsync();
+                        throw new Exception($"Supabase error: {response.StatusCode} - {err}");
+                    }
+                    
+                    Log($"🌐 Sync batch {(i / batchSize) + 1} สำเร็จ ({i + count}/{newTemplates.Count})");
+                    await Task.Delay(100);
+                }
+            }
+            
+            // Step 4: บันทึกรายการที่ sync แล้วทั้งหมด (เก่า + ใหม่)
+            foreach (var t in newTemplates)
+            {
+                string empCode = t.EmployeeCode ?? t.MdbUserId.ToString();
+                syncedKeys.Add($"{empCode}|{t.FingerId}|{t.TemplateData.Length}");
+            }
+            
+            try
+            {
+                var keysArray = new JArray();
+                foreach (var k in syncedKeys) keysArray.Add(k);
+                
+                var syncRecord = new JObject
+                {
+                    ["last_sync"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                    ["total_synced"] = syncedKeys.Count,
+                    ["keys"] = keysArray
+                };
+                File.WriteAllText(syncedFilePath, syncRecord.ToString());
+                Log($"💾 บันทึกรายการ sync แล้ว ({syncedKeys.Count} รายการ)");
+            }
+            catch (Exception ex)
+            {
+                Log($"⚠️ บันทึก sync record ล้มเหลว: {ex.Message}");
+            }
+            
+            Log($"✅ Sync สำเร็จ: +{newTemplates.Count} ใหม่ (รวม {syncedKeys.Count} ทั้งหมด)");
         }
         
         #endregion

@@ -12,8 +12,12 @@
   
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.118" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Data" />
     <Reference Include="Microsoft.CSharp" />
+    <Content Include="api_url.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

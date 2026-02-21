@@ -1,6 +1,7 @@
 // Sync attendance from ZKTeco devices to Supabase
 // Supports night shift by syncing yesterday + today
-// Fixed: Now properly syncs ALL data since last sync, not just from yesterday
+// Syncs ONLY daily attendance (yesterday + today) to handle night shifts
+// No longer tries to "catch up" on old missing data (per new requirement)
 // Added: Auto-create employees when new employee_code detected
 const ZKLib = require('zkteco-js');
 const fs = require('fs');
@@ -25,7 +26,8 @@ let newEmployeesCreated = [];
 const START_DATE = new Date('2025-12-26T00:00:00');
 
 // Default sync window: sync at least 7 days back for safety (covers holidays, weekends)
-const DEFAULT_SYNC_DAYS = 7;
+// Default sync window is now fixed to yesterday + today
+
 
 // Calculate a date at midnight
 function getMidnight(date) {
@@ -42,11 +44,6 @@ function getYesterday() {
 }
 
 // Get N days ago at midnight
-function getDaysAgo(days) {
-    const date = new Date();
-    date.setDate(date.getDate() - days);
-    return getMidnight(date);
-}
 
 const STATE_FILE = 'sync-state.json';
 const STATE_BACKUP_FILE = 'sync-state.backup.json';
@@ -228,28 +225,12 @@ async function autoCreateMissingEmployees(employeeCodes) {
  * - If lastSync is very old (> DEFAULT_SYNC_DAYS), still respect it to catch all missed data
  */
 function calculateCutoff(lastSyncTime) {
-    const yesterday = getYesterday();
-    const defaultCutoff = getDaysAgo(DEFAULT_SYNC_DAYS);
+    // Always sync from yesterday to cover night shifts
+    // We intentionally IGNORE lastSyncTime because we don't need to "catch up" on old data
+    // (attendance/credit is daily basis)
+    let cutoff = getYesterday();
 
-    let cutoff;
-
-    if (!lastSyncTime) {
-        // First sync for this device - use default window
-        cutoff = defaultCutoff;
-        console.log(`   📅 First sync: using ${DEFAULT_SYNC_DAYS}-day window`);
-    } else {
-        const lastSync = new Date(lastSyncTime);
-
-        // Use the OLDER date to ensure we don't miss anything
-        // This fixes the bug where we skipped data between lastSync and yesterday
-        if (lastSync < yesterday) {
-            cutoff = lastSync;
-            console.log(`   📅 Using lastSync: ${lastSync.toISOString()}`);
-        } else {
-            cutoff = yesterday;
-            console.log(`   📅 Using yesterday: ${yesterday.toISOString()}`);
-        }
-    }
+    console.log(`   📅 Using daily window: moving forward from ${cutoff.toISOString()}`);
 
     // Never go before START_DATE
     if (cutoff < START_DATE) {
@@ -326,7 +307,7 @@ async function main() {
     console.log('🔄 ATTENDANCE SYNC + AUTO-CREATE EMPLOYEES');
     console.log(`   Time: ${new Date().toLocaleString('th-TH')}`);
     console.log(`   Mode: Night shift support (yesterday + today minimum)`);
-    console.log(`   Safety: ${DEFAULT_SYNC_DAYS}-day default window`);
+    console.log(`   Safety: Fixed daily window (yesterday + today)`);
     console.log('═'.repeat(60));
 
     // Load existing employees first
@@ -342,7 +323,7 @@ async function main() {
         if (lastSync) {
             console.log(`   ${device.name}: ${new Date(lastSync).toLocaleString('th-TH')}`);
         } else {
-            console.log(`   ${device.name}: Never (will sync ${DEFAULT_SYNC_DAYS} days)`);
+            console.log(`   ${device.name}: Never (will sync daily window)`);
         }
     }
 

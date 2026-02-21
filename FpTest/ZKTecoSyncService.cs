@@ -13,7 +13,7 @@ namespace FpTest
     /// Sync attendance from ZKTeco devices to Supabase
     /// Uses incremental sync - only syncs new data since last sync
     /// </summary>
-    public class ZKTecoSyncService
+    public class ZKTecoSyncService : IDisposable
     {
         private readonly string _supabaseUrl;
         private readonly string _supabaseKey;
@@ -26,10 +26,16 @@ namespace FpTest
         private readonly string _stateFilePath;
         private SyncState _state;
         
+        // Local database for client-side duplicate detection
+        private readonly LocalDbService _localDb;
+        
+        // Prevent concurrent sync
+        public bool IsSyncing { get; private set; } = false;
+        
         // Sync window: number of days to sync back for FIRST TIME only
-        private const int FIRST_SYNC_DAYS = 7;
-        // Safety margin: always sync at least 1 day back to catch edge cases
-        private const int SAFETY_DAYS = 1;
+        private const int FIRST_SYNC_DAYS = 1;
+        // Safety margin: sync back to catch edge cases (set to 0 to only look at last sync's current day)
+        private const int SAFETY_DAYS = 0;
         
         public ZKTecoSyncService(string supabaseUrl, string supabaseKey)
         {
@@ -42,6 +48,9 @@ namespace FpTest
             // State file in app directory
             _stateFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fptest-sync-state.json");
             LoadState();
+            
+            // Initialize local database
+            _localDb = new LocalDbService();
         }
         
         public void AddDevice(string name, string ip, int port = 4370)
@@ -109,8 +118,17 @@ namespace FpTest
         /// </summary>
         public async Task<SyncResult> SyncAllDevicesAsync(Action<string> log)
         {
+            if (IsSyncing)
+            {
+                log?.Invoke("⚠️ Sync กำลังทำงานอยู่แล้ว — รอให้เสร็จก่อน");
+                return new SyncResult();
+            }
+            
+            IsSyncing = true;
             var result = new SyncResult();
             
+            try
+            {
             // Show sync mode
             var isFirstSync = _state.LastRun == DateTime.MinValue;
             if (isFirstSync)
@@ -121,6 +139,10 @@ namespace FpTest
             {
                 log?.Invoke($"🔄 Incremental Sync จาก {_state.LastRun:dd/MM HH:mm}");
             }
+            
+            // Show local cache stats
+            var stats = _localDb.GetStats();
+            log?.Invoke($"💾 Local cache: {stats.totalRecords:N0} records");
             
             log?.Invoke($"📡 {_devices.Count} devices...");
             
@@ -154,13 +176,16 @@ namespace FpTest
             }
             
             // Create meal credits for today's attendance
-            if (result.NewRecords > 0)
-            {
-                await CreateTodayMealCreditsAsync(log);
-            }
+            // Always run this to ensure credits are granted even if records were synced previously (e.g. recovery)
+            await CreateTodayMealCreditsAsync(log);
             
             // แสดง 10 attendance ล่าสุดจาก Supabase เสมอ
             await ShowRecentAttendanceAsync(log);
+            }
+            finally
+            {
+                IsSyncing = false;
+            }
             
             return result;
         }
@@ -185,9 +210,9 @@ namespace FpTest
                     return sdkResult;
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Device unreachable - skip quietly
+                log?.Invoke($"⚠️ {device.Name}: เชื่อมต่อไม่ได้ - {ex.Message}");
             }
             
             return result;
@@ -282,14 +307,33 @@ namespace FpTest
                             
                             if (checkTime >= syncFrom && checkTime < maxValidDate && checkTime >= minValidDate)
                             {
-                                var saved = await SaveAttendanceRecordAsync(dwEnrollNumber, checkTime, "SCAN", device.IP, dwInOutMode);
+                                // Check local cache first (client-side dup detection)
+                                if (_localDb.Exists(dwEnrollNumber, checkTime, device.IP))
+                                {
+                                    // Skip - already in local DB (no need to hit Supabase)
+                                    result.TotalRecords++;
+                                    result.SkippedDuplicates++;
+                                    continue;
+                                }
                                 
-                                // Log record (without raw state)
-                                var status = saved ? "✅ NEW" : "⏭️ DUP";
+                                var saveResult = await SaveAttendanceRecordAsync(dwEnrollNumber, checkTime, "SCAN", device.IP, dwInOutMode);
+                                
+                                // Improve logging
+                                string status;
+                                if (saveResult == SaveResult.Success) status = "✅ NEW";
+                                else if (saveResult == SaveResult.Duplicate) status = "⏭️ DUP (Cached)";
+                                else status = "❌ ERR";
+
                                 log?.Invoke($"   {status} {checkTime:dd/MM HH:mm} | PIN:{dwEnrollNumber}");
                                 
-                                if (saved)
-                                    result.NewRecords++;
+                                if (saveResult == SaveResult.Success || saveResult == SaveResult.Duplicate)
+                                {
+                                    if (saveResult == SaveResult.Success) result.NewRecords++;
+                                    else result.SkippedDuplicates++;
+
+                                    // Save to local cache on success OR duplicate (to skip next time)
+                                    _localDb.Insert(dwEnrollNumber, checkTime, device.IP);
+                                }
                                 
                                 result.TotalRecords++;
                                 
@@ -314,8 +358,9 @@ namespace FpTest
                     return null;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                log?.Invoke($"   ❌ SDK error ({device.Name}): {ex.Message}");
                 return null;
             }
             
@@ -348,15 +393,32 @@ namespace FpTest
                         
                         if (checkTime >= syncFrom && checkTime < maxValidDate && checkTime >= minValidDate)
                         {
-                            var rawState = int.TryParse(status, out var s) ? s : 0;
-                            var saved = await SaveAttendanceRecordAsync(pin, checkTime, "SCAN", device.IP, rawState);
+                            // Check local cache first
+                            if (_localDb.Exists(pin, checkTime, device.IP))
+                            {
+                                result.TotalRecords++;
+                                result.SkippedDuplicates++;
+                                continue;
+                            }
                             
-                            // Log record (without raw state)
-                            var logStatus = saved ? "✅ NEW" : "⏭️ DUP";
+                            var rawState = int.TryParse(status, out var s) ? s : 0;
+                            var saveResult = await SaveAttendanceRecordAsync(pin, checkTime, "SCAN", device.IP, rawState);
+                            
+                            // Log record
+                            string logStatus;
+                            if (saveResult == SaveResult.Success) logStatus = "✅ NEW";
+                            else if (saveResult == SaveResult.Duplicate) logStatus = "⏭️ DUP (Cached)";
+                            else logStatus = "❌ ERR";
+
                             log?.Invoke($"   {logStatus} {checkTime:dd/MM HH:mm} | PIN:{pin}");
                             
-                            if (saved)
-                                result.NewRecords++;
+                            if (saveResult == SaveResult.Success || saveResult == SaveResult.Duplicate)
+                            {
+                                if (saveResult == SaveResult.Success) result.NewRecords++;
+                                
+                                // Cache locally
+                                _localDb.Insert(pin, checkTime, device.IP);
+                            }
                             
                             result.TotalRecords++;
                             
@@ -381,7 +443,14 @@ namespace FpTest
             return result;
         }
 
-        private async Task<bool> SaveAttendanceRecordAsync(string employeeCode, DateTime checkTime, string checkType, string deviceName, int rawState = 0)
+        private enum SaveResult
+        {
+            Success,
+            Duplicate,
+            Error
+        }
+
+        private async Task<SaveResult> SaveAttendanceRecordAsync(string employeeCode, DateTime checkTime, string checkType, string deviceName, int rawState = 0)
         {
             try
             {
@@ -413,18 +482,18 @@ namespace FpTest
                     // Check if it's a duplicate error (23505 = unique violation)
                     if (errorBody.Contains("23505") || errorBody.Contains("duplicate"))
                     {
-                        return false; // Duplicate - expected
+                        return SaveResult.Duplicate; // Duplicate - expected
                     }
                     Console.WriteLine($"❌ Save error: {response.StatusCode} - {errorBody}");
-                    return false;
+                    return SaveResult.Error;
                 }
                 
-                return true;
+                return SaveResult.Success;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Exception: {ex.Message}");
-                return false;
+                return SaveResult.Error;
             }
         }
         
@@ -436,7 +505,18 @@ namespace FpTest
                 
                 log?.Invoke($"💳 กำลังให้สิทธิ์ meal credits สำหรับวันที่ {today}...");
                 
-                var apiUrl = "http://localhost:3000/api/auto-grant-credits";
+                var apiUrl = "http://localhost:3000";
+                try {
+                    var urlFile = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "api_url.txt");
+                    if (System.IO.File.Exists(urlFile)) {
+                        var _url = System.IO.File.ReadAllText(urlFile).Trim();
+                        if (!string.IsNullOrEmpty(_url)) apiUrl = _url;
+                    }
+                } catch { }
+
+                log?.Invoke($"🌐 Using API: {apiUrl}");
+                apiUrl = apiUrl.TrimEnd('/') + "/api/auto-grant-credits";
+                
                 var requestBody = new { date = today, grantOT = false };
                 
                 var content = new StringContent(
@@ -505,6 +585,12 @@ namespace FpTest
                 log?.Invoke($"⚠️ ดึง attendance: {ex.Message}");
             }
         }
+        
+        public void Dispose()
+        {
+            _localDb?.Dispose();
+            _http?.Dispose();
+        }
     }
     
     public class DeviceConfig
@@ -519,9 +605,12 @@ namespace FpTest
         public int DevicesSynced { get; set; }
         public int TotalRecords { get; set; }
         public int NewRecords { get; set; }
+        public int SkippedDuplicates { get; set; }
         public int Errors { get; set; }
     }
     
+
+
     public class SyncState
     {
         public DateTime LastRun { get; set; } = DateTime.MinValue;

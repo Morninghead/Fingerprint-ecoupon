@@ -31,7 +31,16 @@ interface GrantResult {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json().catch(() => ({}));
-        const date = body.date || new Date().toISOString().split('T')[0];
+
+        // Fix: Use Thailand timezone for default date
+        const defaultDate = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Bangkok',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).format(new Date());
+
+        const date = body.date || defaultDate;
         const grantOT = body.grantOT || false;
 
         console.log(`\n${'═'.repeat(50)}`);

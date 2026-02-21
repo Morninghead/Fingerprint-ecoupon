@@ -90,51 +90,82 @@ namespace FpTest
                 
                 log?.Invoke($"✅ [{deviceName}] เชื่อมต่อสำเร็จ");
                 
-                // Disable device while reading
+                // Single Pass: Load everything to memory first
                 czkem.EnableDevice(1, false);
+                log?.Invoke($"⏳ [{deviceName}] กำลังอ่านข้อมูลเข้า memory...");
                 
-                // Read all user info and their fingerprints
-                if (czkem.ReadAllUserID(1))
+                // Read both Users and Templates into memory buffers
+                bool readUsers = czkem.ReadAllUserID(1); 
+                bool readTemplates = czkem.ReadAllTemplate(1);
+                
+                if (readUsers && readTemplates)
                 {
                     string enrollNumber = "";
                     string name = "";
                     string password = "";
                     int privilege = 0;
                     bool enabled = false;
-                    int userCount = 0;
                     
+                    int userCount = 0;
+                    int templateCount = 0;
+                    
+                    // Iterate through users (Cursor is at start)
                     while (czkem.SSR_GetAllUserInfo(1, out enrollNumber, out name, out password, out privilege, out enabled))
                     {
                         userCount++;
+                        if (userCount % 50 == 0) // Log every 50 to reduce spam
+                        {
+                            log?.Invoke($"⏳ [{deviceName}] ตรวจสอบแล้ว {userCount} users (พบ {templateCount} templates)...");
+                        }
                         
-                        // Get fingerprint info for this user to know which fingers have templates
-                        int fingerIndex = 0;
-                        int flag = 0;
-                        string tmpData = "";
-                        int tmpLength = 0;
-                        
-                        // Try each finger but only if it has data (check 0-9)
+                        // Check all 10 fingers for this user
                         for (int finger = 0; finger < 10; finger++)
                         {
-                            if (czkem.SSR_GetUserTmpStr(1, enrollNumber, finger, out tmpData, out tmpLength))
+                            string tmpData = "";
+                            int tmpLength = 0;
+                            int flag = 1;
+                            
+                            bool found = false;
+                            
+                            // 1. Try V10 (Prioritize local memory call)
+                            try 
+                            { 
+                                if (czkem.GetUserTmpExStr(1, enrollNumber, finger, out flag, out tmpData, out tmpLength))
+                                    found = true;
+                            } 
+                            catch { }
+                            
+                            // 2. Fallback to V9/Generic
+                            if (!found)
                             {
-                                if (!string.IsNullOrEmpty(tmpData) && tmpLength > 0)
+                                try
                                 {
-                                    templates.Add(new DeviceTemplate
-                                    {
-                                        UserId = enrollNumber,
-                                        UserName = name,
-                                        FingerId = finger,
-                                        TemplateData = tmpData,
-                                        TemplateLength = tmpLength,
-                                        DeviceName = deviceName
-                                    });
+                                    if (czkem.SSR_GetUserTmpStr(1, enrollNumber, finger, out tmpData, out tmpLength))
+                                        found = true;
                                 }
+                                catch { }
+                            }
+
+                            if (found && !string.IsNullOrEmpty(tmpData) && tmpLength > 10) // Check > 10 to be safe
+                            {
+                                templates.Add(new DeviceTemplate
+                                {
+                                    UserId = enrollNumber,
+                                    UserName = name,
+                                    FingerId = finger,
+                                    TemplateData = tmpData,
+                                    TemplateLength = tmpLength,
+                                    DeviceName = deviceName
+                                });
+                                templateCount++;
                             }
                         }
                     }
-                    
-                    log?.Invoke($"📁 [{deviceName}] {templates.Count} templates จาก {userCount} users");
+                    log?.Invoke($"✅ [{deviceName}] เสร็จสิ้น: {templateCount} templates จาก {userCount} users");
+                }
+                else
+                {
+                     log?.Invoke($"❌ [{deviceName}] อ่านข้อมูลเข้า Memory ล้มเหลว (Users={readUsers}, Tmp={readTemplates})");
                 }
                 
                 // Re-enable device
