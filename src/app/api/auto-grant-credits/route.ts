@@ -170,27 +170,35 @@ async function grantMealCreditsForDate(date: string, grantOT: boolean): Promise<
 
     console.log(`👥 Matched ${employees?.length || 0} employees from database`);
 
-    // 3. สร้างหรืออัพเดท meal_credits
+    // 3. สร้างหรืออัพเดท meal_credits แบบ Bulk Insert
     let lunchGranted = 0;
     let otGranted = 0;
 
-    for (const emp of employees || []) {
-        const { error: upsertError } = await supabase
-            .from('meal_credits')
-            .upsert({
-                employee_id: emp.id,
-                date: date,
-                lunch_available: true,
-                ot_meal_available: grantOT
-            }, {
-                onConflict: 'employee_id,date'
-            });
+    const creditsToUpsert = (employees || []).map(emp => ({
+        employee_id: emp.id,
+        date: date,
+        lunch_available: true,
+        ot_meal_available: grantOT
+    }));
 
-        if (upsertError) {
-            errors.push(`Failed to grant credit for ${emp.name}: ${upsertError.message}`);
-        } else {
-            lunchGranted++;
-            if (grantOT) otGranted++;
+    if (creditsToUpsert.length > 0) {
+        // แบ่งการ upsert เป็น chunk เผื่อมีจำนวนมากเกิน limit ของ supabase (ประมาณ 1000 แถวต่อ request กำลังดี)
+        const chunkSize = 1000;
+        for (let i = 0; i < creditsToUpsert.length; i += chunkSize) {
+            const chunk = creditsToUpsert.slice(i, i + chunkSize);
+            const { error: upsertError } = await supabase
+                .from('meal_credits')
+                .upsert(chunk, {
+                    onConflict: 'employee_id,date'
+                });
+
+            if (upsertError) {
+                errors.push(`Failed to bulk grant credits (chunk ${i}): ${upsertError.message}`);
+                console.error("Bulk upsert error:", upsertError);
+            } else {
+                lunchGranted += chunk.length;
+                if (grantOT) otGranted += chunk.length;
+            }
         }
     }
 
